@@ -1,0 +1,10 @@
+# Không commit khóa riêng và dữ liệu sinh ra
+keys/
+data/
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

@@ -1,0 +1,6 @@
+pillow
+numpy
+cryptography
+flask
+requests
+pytest
