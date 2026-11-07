@@ -45,6 +45,10 @@ imgsign/
 | `NTFY_TOPIC` | đọc env `IMGSIGN_NTFY_TOPIC`, rỗng = tắt cảnh báo | Kênh cảnh báo |
 | `KEY_PASSWORD` | đọc env `IMGSIGN_KEY_PASSWORD`, rỗng = không mã hóa khóa | Mật khẩu khóa riêng |
 | `MAX_UPLOAD_MB` | `10` | Giới hạn upload |
+| `SECRET_KEY` | đọc env `IMGSIGN_SECRET_KEY`, không có thì `secrets.token_hex(32)` mỗi lần khởi động | Khóa phiên Flask (không hardcode) |
+| `RATE_LIMIT_MAX` | `20` | Số lần POST tối đa mỗi IP trong một cửa sổ |
+| `RATE_LIMIT_WINDOW` | `60.0` | Độ dài cửa sổ giới hạn tần suất (giây) |
+| `BATCH_MAX` | `10` | Số ảnh tối đa cho một lần xác minh theo lô (`/verify-batch`) |
 
 Dùng `pathlib.Path` cho mọi đường dẫn, gốc là thư mục chứa `config.py`.
 
@@ -163,14 +167,24 @@ Mỗi lệnh in kết quả có dòng thời gian đầu tiên.
 
 | Route | Method | Việc |
 |-------|--------|------|
-| `/` | GET | Trang chủ: tóm tắt, số tài sản, 5 sự kiện log gần nhất |
+| `/` | GET | (FR-15) Bảng điều khiển: thẻ số liệu (tài sản, lần xác minh, hợp lệ, không hợp lệ), biểu đồ cột CSS, 5 sự kiện gần nhất có màu |
 | `/protect` | GET/POST | Upload PNG + tên + loại + mức quan trọng -> chạy `protect` -> hiện kết quả, link tải ảnh đã ký và sidecar |
 | `/verify` | GET/POST | Upload PNG (+ sidecar tùy chọn) -> `verify_full` -> hiện kết luận màu xanh/đỏ/vàng |
 | `/assets` | GET | Bảng tài sản |
-| `/logs` | GET | 50 dòng log mới nhất |
+| `/logs` | GET | (FR-18) Lọc theo kết luận (`verdict`), tìm theo tên ảnh (`q`), phân trang 50 dòng (`page`) |
 | `/download/<asset_id>/<kind>` | GET | `kind` chỉ nhận `png` hoặc `sig`; kiểm `asset_id` khớp regex `^IMG-\d{4}$` |
+| `/compare` | GET/POST | (FR-12) Chọn asset + upload ảnh nghi giả; so bằng `ImageChops.difference`; hiện 3 ảnh, số điểm ảnh khác, tỷ lệ % |
+| `/nist` | GET | (FR-13) Bảng 5 ô NIST kèm số liệu thật tính từ `assets.json`, `data/signed`, `verify.log` |
+| `/assets/<asset_id>` | GET/POST | (FR-14) Chi tiết tài sản, lịch sử xác minh riêng; POST = khôi phục |
+| `/verify-batch` | GET/POST | (FR-16) Xác minh tối đa 10 ảnh cùng lúc; ntfy tối đa 1 thông báo tóm tắt |
+| `/keys` | GET | (FR-17) Fingerprint, ngày tạo khóa công khai, tải `public.pem` |
+| `/keys/public.pem` | GET | (FR-17) Chỉ phục vụ `public.pem`; không bao giờ trả khóa riêng |
+| `/logs/export.csv` | GET | (FR-18) Xuất log theo bộ lọc hiện tại, chống CSV injection |
+| `/alert-test` | GET/POST | (FR-19) Trạng thái ntfy (ẩn topic) + gửi thử cảnh báo |
 
-Giao diện: HTML thuần + một file CSS nhỏ, nền sáng, kết luận HỢP LỆ màu xanh, KHÔNG HỢP LỆ màu đỏ, cảnh báo màu vàng. Không dùng framework JS.
+Giới hạn tần suất: mọi request **POST** bị đếm theo IP; vượt `RATE_LIMIT_MAX` trong `RATE_LIMIT_WINDOW` giây trả **429** kèm thông báo tiếng Việt. Ghi thêm sự kiện `RECOVER` và `ALERT` vào `verify.log` theo định dạng cũ (mục 4.5) để đếm số liệu cho `/nist`.
+
+Giao diện: HTML thuần + một file CSS nhỏ, nền sáng, kết luận HỢP LỆ màu xanh, KHÔNG HỢP LỆ màu đỏ, cảnh báo màu vàng. Không dùng framework JS. Biểu đồ vẽ bằng HTML/CSS thuần.
 Trên trang `/verify` nếu người dùng tải ảnh lên không kèm sidecar, tự tìm sidecar theo `asset_id` đọc từ LSB trong `data/signed/`; nếu không có thì kết luận `KHONG_XAC_MINH_DUOC`.
 
 ## 7. Phụ thuộc (`requirements.txt`)

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Khóa - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Khóa công khai <span class="nist protect">[PROTECT]</span></h1>
+  <p class="muted">Hệ thống dùng chữ ký số bất đối xứng: khóa riêng để ký, khóa công khai để xác minh.
+  Trang này <b>chỉ</b> hiển thị và cung cấp khóa công khai. Khóa riêng không bao giờ được phục vụ qua web.</p>
+
+  {% if exists %}
+  <div class="kv">
+    <div><b>Thuật toán:</b> {{ algo }}</div>
+    <div><b>Vân tay khóa công khai (16 hex đầu của SHA-256):</b> {{ fingerprint }}</div>
+    <div><b>Ngày tạo khóa (theo thời gian file public.pem):</b> {{ created }}</div>
+    <div><b>File:</b> keys/public.pem</div>
+  </div>
+  <br>
+  <a class="dl" href="{{ url_for('keys_public_download') }}">Tải public.pem</a>
+  {% else %}
+    <p class="muted">Chưa có khóa. Hãy chạy lệnh <code>python cli.py keygen</code> trước.</p>
+  {% endif %}
+</div>
+{% endblock %}

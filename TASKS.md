@@ -36,7 +36,7 @@ Chạy `keygen` lần 2 không `--force` phải báo "khóa đã tồn tại" v�
 
 ---
 
-## [ ] M2 — Tạo ảnh giả và phát hiện (FR-3 mở rộng)
+## [x] M2 — Tạo ảnh giả và phát hiện (FR-3 mở rộng)
 **Làm:** lệnh `tamper` với 3 chế độ:
 - `text`: vẽ thêm một dòng chữ đè lên ảnh (giả lập sửa tên)
 - `crop`: cắt bỏ 5% mép dưới
@@ -54,7 +54,7 @@ Mong đợi: cả hai báo `KHÔNG HỢP LỆ` với lý do "sha256 không khớ
 
 ---
 
-## [ ] M3 — Watermark hiện (FR-4)
+## [x] M3 — Watermark hiện (FR-4)
 **Làm:** `watermark.py`. Chữ mờ gồm `OWNER_NAME` và ngày, lặp chéo toàn ảnh với độ trong suốt thấp, vẫn đọc được. Dùng font mặc định của Pillow hoặc font hệ thống có sẵn, có xử lý khi không tìm thấy font. Ảnh có alpha vẫn chạy được.
 
 **Nghiệm thu:**
@@ -65,7 +65,7 @@ Mong đợi: tạo `samples/wm.png`, mở ra thấy chữ mờ, ảnh gốc khô
 
 ---
 
-## [ ] M4 — Watermark ẩn LSB (FR-5)
+## [x] M4 — Watermark ẩn LSB (FR-5)
 **Làm:** `lsb.py` đúng định dạng `ARCHITECTURE.md` mục 4.3. Test: embed rồi extract ra đúng payload; ảnh chưa embed trả `None`; ảnh quá nhỏ báo lỗi; sửa ngẫu nhiên vài điểm ảnh vùng chứa dữ liệu thì CRC sai trả `None`.
 
 **Nghiệm thu:**
@@ -79,7 +79,7 @@ Mong đợi: lệnh đọc thứ nhất in đúng chuỗi; lệnh đọc thứ h
 
 ---
 
-## [ ] M5 — Quy trình bảo vệ + xác minh đầy đủ (FR-6, FR-7)
+## [x] M5 — Quy trình bảo vệ + xác minh đầy đủ (FR-6, FR-7)
 **Làm:** `pipeline.py` với `protect()` (phiên bản chưa có asset/log/ntfy, các phần đó để M6) và `verify_full()` theo bảng logic `SPEC.md` mục 7. Thứ tự quy trình theo `AGENTS.md` mục 6, KHÔNG đổi.
 `tests/test_pipeline.py`: protect rồi verify = HOP_LE; sửa pixel rồi verify = KHONG_HOP_LE; xóa sidecar = KHONG_XAC_MINH_DUOC.
 
@@ -95,7 +95,7 @@ Mong đợi: lần verify đầu `HỢP LỆ`, lần sau `KHÔNG HỢP LỆ` và
 
 ---
 
-## [ ] M6 — Lớp NIST: tài sản, log, ntfy, lưu gốc, khôi phục (FR-8, FR-9, FR-10)
+## [x] M6 — Lớp NIST: tài sản, log, ntfy, lưu gốc, khôi phục (FR-8, FR-9, FR-10)
 **Làm:** `assets.py`, `logger.py`, `notifier.py`, `recover.py`, nối vào `protect()` và `verify_full()`. Thêm lệnh `assets`, `recover`.
 - `protect` đăng ký tài sản, lưu bản gốc vào `data/originals/`, ghi log "BAO_VE".
 - Mỗi lần `verify` ghi một dòng `verify.log`.
@@ -115,7 +115,7 @@ Mong đợi: bảng tài sản có dòng mới; log có dòng `KHONG_HOP_LE`; đ
 
 ---
 
-## [ ] M7 — Giao diện web Flask (FR-11)
+## [x] M7 — Giao diện web Flask (FR-11)
 **Làm:** `web/app.py` và templates theo `ARCHITECTURE.md` mục 6, áp dụng đủ các quy tắc an toàn ở `AGENTS.md` mục 5. Dùng lại hàm trong `pipeline.py`, không viết lại logic.
 
 **Nghiệm thu:**
@@ -132,7 +132,7 @@ Mở `http://127.0.0.1:5000` rồi thử bằng tay:
 
 ---
 
-## [ ] M8 — Kịch bản demo và tài liệu minh chứng
+## [x] M8 — Kịch bản demo và tài liệu minh chứng
 **Làm:**
 - `demo.py`: chạy tự động toàn bộ kịch bản `TEST_PLAN.md` (protect, verify hợp lệ, tamper 3 kiểu, verify, recover), in từng bước có dòng thời gian và tiêu đề rõ để chụp ảnh.
 - `README.md`: cách cài, chạy CLI, chạy web, cấu hình ntfy, cấu trúc thư mục, giới hạn trung thực (lấy từ `SPEC.md` mục 6).

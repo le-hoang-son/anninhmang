@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Quá nhiều yêu cầu - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>429 - Quá nhiều yêu cầu</h1>
+  <div class="verdict warn">TẠM THỜI BỊ CHẶN</div>
+  <p>Bạn đã gửi quá nhiều yêu cầu trong thời gian ngắn. Vui lòng thử lại sau khoảng một phút.</p>
+  <p><a class="dl" href="{{ url_for('index') }}">Về trang chủ</a></p>
+</div>
+{% endblock %}

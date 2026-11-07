@@ -22,9 +22,11 @@
 Lưu ý T8: sau khi thử phải khôi phục khóa gốc (sao lưu `keys/` trước khi thử).
 
 ## 2. Tự động hóa
-- `pytest` bao phủ T1, T2, T5, T6, T7, T10, T14 và test riêng cho `lsb.py`, `signer.py`.
+- `pytest` bao phủ T1, T2, T3, T4, T5, T6, T7, T9, T10, T11, T12, T14 (có test riêng cho `lsb.py`, `signer.py`, `pipeline.py`, `web/app.py`).
 - `demo.py` chạy tuần tự T1, T2, T3, T4, T11 có tiêu đề từng bước để người dùng chụp ảnh.
-- T9, T12, T13 kiểm bằng tay.
+- T8 và T13 kiểm bằng tay (T8 cần sao lưu `keys/` trước; T13 có thêm smoke HTTP tự động trong giai đoạn W1).
+- `test_web.py` kiểm secret_key không hardcode, giới hạn tần suất POST trả 429, không route nào trả khóa riêng
+  (FR-17), và hàm chống CSV injection (FR-18).
 
 ## 3. Danh sách ảnh cần chụp cho báo cáo
 Chụp toàn màn hình, thấy rõ giờ và tên máy. Đặt tên file `EV-01.png`, `EV-02.png`, ...

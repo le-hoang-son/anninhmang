@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "asset_id": "IMG-0006",
+  "file_name": "IMG-0006.png",
+  "sha256": "b455c92616b78db300bf6ea7f819419b7346c7d6945c86f6de07627859cf28e8",
+  "signature_b64": "uHxvA7U9xe07r7zzS6zOrJZToarzqWa2r4IGZ4GvCLLOV00+pUWHSJpruRItZ7mBSurXwYNA7xnVUJ1YOaGIfegLi0hJOBNYuLaUCZncXCZQk0Hzqipl4CUrL523ltuFxEPwvfG1cVbV2SM/Mss3cyxVCLQA5aIWV3FfIVyzbmHyWljiNtXsay9qaFQa1UfpIQ483KEswaHl+YI8eaxKef0ncuwF3GSKTJMCMIfbJrWDcVm5dnHNJ1Q0SpwE1wHyIIwrQch0nraPsjJj3jW+cvVxsKnITGNAEDKwEKY6i44aXBj470wISOcJDaDWVzkLsAN7QWCP8u3RLzHEhZtnuw==",
+  "algorithm": "RSA-PSS-SHA256",
+  "key_fingerprint": "7ac5aa7c33b3f517",
+  "signed_at": "2026-11-07T20:15:39.197267+07:00",
+  "owner": "Truong Demo"
+}

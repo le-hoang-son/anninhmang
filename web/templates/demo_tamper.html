@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Demo tạo ảnh giả - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Demo tạo ảnh giả <span class="pill tag-demo">CHỈ DÙNG CHO DEMO</span></h1>
+  <p class="muted">Trang này chỉ phục vụ trình diễn: tạo một ảnh giả từ bản đã ký để đưa sang trang
+  <a href="{{ url_for('verify') }}">Xác minh</a>. Không dùng trong thực tế.</p>
+
+  <form method="post">
+    <label>Chọn asset đã bảo vệ</label>
+    <select name="asset_id" required>
+      {% for aid in asset_ids %}<option value="{{ aid }}">{{ aid }}</option>{% endfor %}
+    </select>
+
+    <label>Chế độ làm giả</label>
+    <select name="mode" required>
+      {% for m in modes %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+    </select>
+
+    <button type="submit">Tạo ảnh giả</button>
+  </form>
+
+  {% if not asset_ids %}
+    <p class="muted">Chưa có asset nào trong data/signed/. Hãy bảo vệ một ảnh trước.</p>
+  {% endif %}
+</div>
+
+{% if result %}
+<div class="card">
+  <h2>Đã tạo ảnh giả</h2>
+  <div class="kv">
+    <div><b>Asset:</b> {{ result.asset_id }}</div>
+    <div><b>Chế độ:</b> {{ result.mode }}</div>
+    <div><b>Thao tác:</b> {{ result.detail }}</div>
+    <div><b>File:</b> {{ result.file_name }}</div>
+  </div>
+
+  <img class="thumb" style="margin-top:12px;"
+       src="{{ url_for('media', kind='tampered', filename=result.file_name) }}" alt="Anh gia">
+
+  <br>
+  <a class="dl" href="{{ url_for('media', kind='tampered', filename=result.file_name, dl='1') }}">Tải ảnh giả</a><br>
+  <a class="dl" href="{{ url_for('verify') }}">Sang trang Xác minh để kiểm tra ảnh giả này</a>
+</div>
+{% endif %}
+{% endblock %}

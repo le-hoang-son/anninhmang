@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Bảng NIST - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Ánh xạ NIST CSF 1.1 <span class="nist detect">[IDENTIFY] [PROTECT] [DETECT] [RESPOND] [RECOVER]</span></h1>
+  <p class="muted">Số liệu bên dưới được tính thật từ <code>data/assets.json</code>, thư mục
+  <code>data/signed/</code> và <code>data/logs/verify.log</code> tại thời điểm mở trang.</p>
+</div>
+
+<div class="nist-grid">
+  {% for c in cards %}
+  <div class="nist-card {{ c.cls }}">
+    <div class="nist-head">
+      <span class="nist-name">{{ c.name }}</span>
+      <span class="nist-cat">{{ c.cats }}</span>
+    </div>
+    <p class="muted">{{ c.does }}</p>
+    <table class="metric">
+      {% for label, value in c.metrics %}
+        <tr><td>{{ label }}</td><td class="metric-val">{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>Chi tiết số liệu</h2>
+  <div class="kv">
+    <div><b>Số lần bảo vệ (BAO_VE):</b> {{ stats.bao_ve }}</div>
+    <div><b>Số lần xác minh:</b> {{ stats.total_verify }}
+      (Hợp lệ {{ stats.hop_le }}, cảnh báo {{ stats.hop_le_canh_bao }},
+      không hợp lệ {{ stats.khong_hop_le }}, không xác minh được {{ stats.khong_xac_minh }})</div>
+    <div><b>Cảnh báo đã gửi thành công:</b> {{ stats.alerts_sent }}</div>
+    <div><b>Cảnh báo thất bại:</b> {{ stats.alerts_failed }}</div>
+    <div><b>Số lần khôi phục (RECOVER):</b> {{ stats.recovers }}</div>
+  </div>
+</div>
+{% endblock %}

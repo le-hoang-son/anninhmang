@@ -1,6 +1,7 @@
 # Không commit khóa riêng và dữ liệu sinh ra
 keys/
 data/
+data/tampered/
 .env
 
 # Python
@@ -8,3 +9,6 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+
+# Ignore all Markdown files
+*.md

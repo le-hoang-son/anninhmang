@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Nhật ký - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Nhật ký xác minh <span class="nist detect">[DETECT]</span></h1>
+  <p class="muted">Lọc theo kết luận, tìm theo tên ảnh, phân trang {{ 50 }} dòng mỗi trang (mới nhất ở trên).</p>
+
+  <form method="get" class="filterbar">
+    <div>
+      <label>Kết luận</label>
+      <select name="verdict">
+        <option value="all" {% if verdict == 'all' %}selected{% endif %}>Tất cả</option>
+        {% for v in verdicts %}
+        <option value="{{ v }}" {% if verdict == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Tìm theo tên ảnh</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="Ví dụ: IMG-0005">
+    </div>
+    <div class="filter-actions">
+      <button type="submit">Lọc</button>
+    </div>
+  </form>
+
+  <p class="muted">Tìm thấy {{ total }} dòng phù hợp.</p>
+
+  {% if rows %}
+  <table>
+    <tr><th>Thời gian</th><th>Tên file</th><th>Kết luận</th><th>Chi tiết</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td class="muted">{{ r.time }}</td>
+      <td>{{ r.file }}</td>
+      <td><span class="badge {{ r.cls }}">{{ r.label }}</span></td>
+      <td class="muted">{{ r.detail }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+    <p class="muted">Không có dòng log nào phù hợp.</p>
+  {% endif %}
+
+  <div class="pager">
+    {% if page > 1 %}
+      <a class="dl" href="{{ url_for('logs', verdict=verdict, q=q, page=page-1) }}">&laquo; Trang trước</a>
+    {% endif %}
+    <span class="muted">Trang {{ page }} / {{ pages }}</span>
+    {% if page < pages %}
+      <a class="dl" href="{{ url_for('logs', verdict=verdict, q=q, page=page+1) }}">Trang sau &raquo;</a>
+    {% endif %}
+  </div>
+
+  <a class="dl" href="{{ url_for('logs_export', verdict=verdict, q=q) }}">Xuất CSV theo bộ lọc hiện tại</a>
+</div>
+{% endblock %}

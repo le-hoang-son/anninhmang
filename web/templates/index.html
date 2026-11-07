@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Tổng quan - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Bảng điều khiển</h1>
+  <p>ImgSign bảo vệ ảnh bằng <b>watermark hiện</b>, <b>watermark ẩn LSB</b> và <b>chữ ký số RSA-PSS</b>.
+  Hệ thống phát hiện ảnh bị sửa đổi và gửi cảnh báo theo khung NIST CSF 1.1.</p>
+
+  <div class="stat-grid">
+    <div class="stat brand">
+      <div class="stat-label">Tổng tài sản</div>
+      <div class="stat-value">{{ asset_count }}</div>
+    </div>
+    <div class="stat brand">
+      <div class="stat-label">Tổng lần xác minh</div>
+      <div class="stat-value">{{ total_verify }}</div>
+    </div>
+    <div class="stat ok">
+      <div class="stat-label">Hợp lệ</div>
+      <div class="stat-value">{{ valid }}</div>
+    </div>
+    <div class="stat bad">
+      <div class="stat-label">Không hợp lệ</div>
+      <div class="stat-value">{{ invalid }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>So sánh hợp lệ và không hợp lệ</h2>
+  <div class="chart">
+    {% for b in chart %}
+    <div class="bar-wrap">
+      <div class="bar-value">{{ b.value }}</div>
+      <div class="bar {{ b.cls }}" style="height: {{ b.pct }}%;"></div>
+      <div class="bar-label">{{ b.label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>5 sự kiện gần nhất</h2>
+  {% if events %}
+    <table>
+      <tr><th>Thời gian</th><th>File</th><th>Kết luận</th><th>Chi tiết</th></tr>
+      {% for e in events %}
+      <tr>
+        <td class="muted">{{ e.time }}</td>
+        <td>{{ e.file }}</td>
+        <td><span class="badge {{ e.cls }}">{{ e.label }}</span></td>
+        <td class="muted">{{ e.detail }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">Chưa có sự kiện nào trong nhật ký.</p>
+  {% endif %}
+</div>
+{% endblock %}

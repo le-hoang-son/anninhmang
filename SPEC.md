@@ -23,6 +23,15 @@ Ví dụ: một trường phát hành ảnh bằng tốt nghiệp. Hệ thống 
 | FR-9 | Ghi log + cảnh báo (Respond) | Mỗi lần xác minh ghi một dòng vào `data/logs/verify.log`. Nếu KHÔNG HỢP LỆ thì gửi ntfy. | M6 |
 | FR-10 | Lưu gốc + khôi phục (Recover) | Khi bảo vệ, lưu bản gốc vào `data/originals/`. Lệnh `recover` đưa bản đã ký trở lại và kiểm tra lại chữ ký. | M6 |
 | FR-11 | Giao diện web | Flask: trang chủ, đăng ký + bảo vệ ảnh, xác minh ảnh, xem log, danh sách tài sản. | M7 |
+| FR-12 | So sánh ảnh (web) | Chọn asset trong `data/signed`, upload ảnh nghi giả, so bằng `ImageChops.difference`, vẽ khung đỏ vùng khác biệt, hiện 3 ảnh + số điểm ảnh khác và tỷ lệ %. Xử lý ảnh khác kích thước. | W2 |
+| FR-13 | Bảng NIST động (web) | 5 ô Identify / Protect / Detect / Respond / Recover: danh mục NIST, việc hệ thống làm, số liệu thật (số tài sản, ảnh đã ký, lần xác minh, lần phát hiện giả, cảnh báo đã gửi, lần khôi phục). | W2 |
+| FR-14 | Chi tiết tài sản (web) | `/assets/<id>`: thông tin, ảnh đã ký, lịch sử xác minh riêng, nút tải + nút Khôi phục (POST, dùng `recover.recover`). | W2 |
+| FR-15 | Bảng điều khiển (web) | Trang chủ thành dashboard: thẻ số liệu, biểu đồ cột CSS hợp lệ/không hợp lệ, 5 sự kiện gần nhất có màu. | W3 |
+| FR-16 | Xác minh theo lô (web) | `/verify-batch`: upload tối đa 10 ảnh PNG, mỗi ảnh tự tìm sidecar theo LSB; bảng kết quả; ghi log từng ảnh; gửi ntfy tối đa một thông báo tóm tắt. | W3 |
+| FR-17 | Quản lý khóa công khai (web) | `/keys`: fingerprint, ngày tạo, tải `public.pem`. Tuyệt đối không có route trả khóa riêng. | W4 |
+| FR-18 | Nhật ký nâng cao (web) | `/logs`: lọc theo kết luận, tìm theo tên ảnh, phân trang 50 dòng, xuất CSV (chống CSV injection). | W4 |
+| FR-19 | Thử cảnh báo (web) | `/alert-test`: hiện trạng thái ntfy (chỉ 3 ký tự đầu của topic) và nút gửi thử cảnh báo. | W4 |
+| FR-20 | Bảo mật web nâng cao | `secret_key` đọc từ `IMGSIGN_SECRET_KEY` (không hardcode); giới hạn tần suất POST theo IP (20 lần/phút), vượt quá trả 429 kèm thông báo tiếng Việt. | W1 |
 
 ## 4. Phi chức năng
 - Chạy trên Windows và Ubuntu. Không cần Internet, trừ gửi ntfy (lỗi mạng ntfy không được làm sập chương trình, chỉ ghi log).

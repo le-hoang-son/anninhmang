@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}So sánh ảnh - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>So sánh ảnh nghi giả <span class="nist detect">[DETECT]</span></h1>
+  <p class="muted">Chọn một asset đã bảo vệ và tải lên ảnh nghi bị sửa. Hệ thống so bằng
+  <b>Pillow ImageChops.difference</b>, tô đỏ vùng khác biệt.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label>Asset đã bảo vệ</label>
+    <select name="asset_id" required>
+      {% for aid in asset_ids %}<option value="{{ aid }}">{{ aid }}</option>{% endfor %}
+    </select>
+
+    <label>Ảnh nghi giả (PNG)</label>
+    <input type="file" name="png" accept="image/png" required>
+
+    <button type="submit">So sánh</button>
+  </form>
+  {% if not asset_ids %}
+    <p class="muted">Chưa có asset nào trong data/signed/. Hãy bảo vệ một ảnh trước.</p>
+  {% endif %}
+</div>
+
+{% if result %}
+<div class="card">
+  <h2>Kết quả so sánh</h2>
+
+  {% if result.diff_pixels == 0 %}
+    <div class="verdict ok">KHÔNG PHÁT HIỆN KHÁC BIỆT
+      <span class="sub">Hai ảnh giống hệt nhau ở vùng so sánh.</span>
+    </div>
+  {% else %}
+    <div class="verdict bad">PHÁT HIỆN {{ result.diff_pixels }} ĐIỂM ẢNH KHÁC BIỆT
+      <span class="sub">Tỷ lệ khác biệt: {{ result.percent }}% &mdash; {{ result.box_count }} vùng bị tô đỏ</span>
+    </div>
+  {% endif %}
+
+  <div class="kv">
+    <div><b>Kích thước bản đã ký:</b> {{ result.ref_size[0] }} x {{ result.ref_size[1] }}</div>
+    <div><b>Kích thước ảnh nghi giả:</b> {{ result.suspect_size[0] }} x {{ result.suspect_size[1] }}</div>
+    <div><b>Cùng kích thước:</b> {{ "Có" if result.same_size else "Không" }}</div>
+    <div><b>Số điểm ảnh khác:</b> {{ result.diff_pixels }} / {{ result.total_pixels }}</div>
+    <div><b>Tỷ lệ khác biệt:</b> {{ result.percent }}%</div>
+  </div>
+
+  {% if not result.same_size %}
+    <p class="muted">Hai ảnh khác kích thước: chỉ so phần chung (góc trên-trái) là
+    {{ result.ref_size[0] if result.ref_size[0] < result.suspect_size[0] else result.suspect_size[0] }} x
+    {{ result.ref_size[1] if result.ref_size[1] < result.suspect_size[1] else result.suspect_size[1] }} điểm ảnh.</p>
+  {% endif %}
+
+  <div class="grid3" style="margin-top:14px;">
+    <div>
+      <h3>Bản đã ký (tham chiếu)</h3>
+      <img class="thumb" src="{{ url_for('media', kind='signed', filename=result.ref_name) }}" alt="Anh tham chieu">
+    </div>
+    <div>
+      <h3>Ảnh nghi giả</h3>
+      <img class="thumb" src="{{ url_for('media', kind='compare', filename=result.suspect_name) }}" alt="Anh nghi gia">
+    </div>
+    <div>
+      <h3>Vùng khác biệt (tô đỏ)</h3>
+      <img class="thumb" src="{{ url_for('media', kind='compare', filename=result.annotated_name) }}" alt="Anh danh dau">
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

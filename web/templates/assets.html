@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Tài sản - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Bảng tài sản ảnh <span class="nist detect">[IDENTIFY]</span></h1>
+  {% if rows %}
+  <table>
+    <tr>
+      <th>asset_id</th><th>Mức</th><th>Loại</th><th>Tên</th><th>SHA-256 gốc</th><th>created_at</th>
+    </tr>
+    {% for a in rows %}
+    <tr>
+      <td><a href="{{ url_for('asset_detail', asset_id=a.asset_id) }}">{{ a.asset_id }}</a></td>
+      <td>{{ a.importance }}</td>
+      <td>{{ a.type }}</td>
+      <td>{{ a.name }}</td>
+      <td class="muted">{{ a.sha256_original[:16] }}...</td>
+      <td class="muted">{{ a.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+    <p class="muted">Chưa có tài sản nào.</p>
+  {% endif %}
+</div>
+{% endblock %}

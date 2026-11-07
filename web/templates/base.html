@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ImgSign{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">ImgSign &mdash; Chống giả mạo ảnh</div>
+    <nav class="menu">
+      <a href="{{ url_for('index') }}">Tổng quan</a>
+      <a href="{{ url_for('protect') }}">Bảo vệ</a>
+      <a href="{{ url_for('verify') }}">Xác minh</a>
+      <a href="{{ url_for('verify_batch') }}">Xác minh lô</a>
+      <a href="{{ url_for('compare') }}">So sánh</a>
+      <a href="{{ url_for('assets') }}">Tài sản</a>
+      <a href="{{ url_for('nist') }}">NIST</a>
+      <a href="{{ url_for('keys_view') }}">Khóa</a>
+      <a href="{{ url_for('logs') }}">Nhật ký</a>
+      <a href="{{ url_for('alert_test') }}">Thử cảnh báo</a>
+      <a href="{{ url_for('demo_tamper') }}">Demo tạo ảnh giả</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="timestamp">Thời gian: {{ now }}</div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">
+          {% for m in messages %}<div>{{ m }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    Đồ án An ninh mạng &mdash; watermark + chữ ký số RSA-PSS &mdash; khung NIST CSF 1.1
+  </footer>
+</body>
+</html>

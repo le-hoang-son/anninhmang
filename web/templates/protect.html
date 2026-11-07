@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Bảo vệ ảnh - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Bảo vệ ảnh</h1>
+  <p class="muted">Quy trình: watermark hiện &rarr; watermark ẩn LSB &rarr; lưu PNG &rarr; <b>ký file cuối cùng</b>.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label>Tên tài sản</label>
+    <input type="text" name="name" placeholder="Ví dụ: Bang tot nghiep A" required>
+
+    <label>Loại ảnh</label>
+    <input type="text" name="type" placeholder="Ví dụ: van bang" required>
+
+    <label>Mức quan trọng</label>
+    <select name="importance">
+      <option value="1">1 - Thấp</option>
+      <option value="2">2 - Trung bình</option>
+      <option value="3" selected>3 - Cao</option>
+    </select>
+
+    <label>Chọn ảnh PNG</label>
+    <input type="file" name="png" accept="image/png" required>
+
+    <button type="submit">Bảo vệ ảnh</button>
+  </form>
+</div>
+
+{% if result %}
+<div class="card">
+  <h2>Kết quả bảo vệ</h2>
+  <div class="verdict ok">
+    ĐÃ BẢO VỆ
+    <span class="sub">Asset: {{ result.asset_id }}</span>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h3>Ảnh trước (bản gốc)</h3>
+      <img class="thumb" src="{{ url_for('media', kind='original', filename=result.original_name) }}" alt="Anh goc">
+    </div>
+    <div>
+      <h3>Ảnh sau (đã watermark + ký)</h3>
+      <img class="thumb" src="{{ url_for('media', kind='signed', filename=result.signed_name) }}" alt="Anh da ky">
+    </div>
+  </div>
+
+  <div class="kv" style="margin-top:14px;">
+    <div><b>SHA-256 ảnh đã ký:</b> {{ result.sha256 }}</div>
+  </div>
+
+  <a class="dl" href="{{ url_for('download', asset_id=result.asset_id, kind='png') }}">Tải ảnh đã ký (.png)</a><br>
+  <a class="dl" href="{{ url_for('download', asset_id=result.asset_id, kind='sig') }}">Tải file chữ ký (.sig.json)</a>
+</div>
+{% endif %}
+{% endblock %}

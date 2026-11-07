@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Xác minh ảnh - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Xác minh ảnh</h1>
+  <p class="muted">Tải ảnh PNG cần kiểm tra. File chữ ký (.sig.json) là tùy chọn; nếu bỏ trống,
+  hệ thống tự tìm theo asset_id đọc từ watermark ẩn.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label>Ảnh PNG</label>
+    <input type="file" name="png" accept="image/png" required>
+
+    <label>File chữ ký (.sig.json) - tùy chọn</label>
+    <input type="file" name="sig" accept=".json,application/json">
+
+    <button type="submit">Xác minh</button>
+  </form>
+</div>
+
+{% if report %}
+<div class="card">
+  <div class="verdict {{ report.cls }}">
+    {{ report.label }}
+    <span class="sub">File: {{ report.file_name }} &mdash; <span class="nist detect">[DETECT]</span>
+      {% if report.cls == 'bad' %}<span class="nist respond">[RESPOND]</span>{% endif %}
+    </span>
+  </div>
+
+  <div class="kv">
+    <div><b>Lý do:</b> {{ report.reason }}</div>
+    <div><b>SHA-256 file:</b> {{ report.sha256 }}</div>
+    <div><b>Watermark ẩn:</b>
+      {% if report.lsb_ok %}đọc được {{ report.lsb_payload }}{% else %}KHÔNG đọc được{% endif %}
+    </div>
+
+    {% if report.sidecar_missing %}
+      <div><b>Sidecar:</b> thiếu &mdash; không xác minh được nguồn gốc.</div>
+    {% else %}
+      <div><b>asset_id:</b> {{ report.asset_id }}</div>
+      <div><b>owner:</b> {{ report.owner }}</div>
+      <div><b>key_fingerprint:</b> {{ report.key_fingerprint }}</div>
+      <div><b>signed_at:</b> {{ report.signed_at }}</div>
+    {% endif %}
+  </div>
+
+  {% if report.notes %}
+    <h3>Phân tích <span class="nist respond">[RESPOND]</span></h3>
+    <ul>
+      {% for n in report.notes %}<li>{{ n }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

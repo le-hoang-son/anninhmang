@@ -1,6 +1,6 @@
 """Diem vao dong lenh cho he thong ImgSign.
 
-M1: da co cac lenh keygen, sign, verify-sig. Cac lenh con lai cai dat o milestone sau.
+M2: da co cac lenh keygen, sign, verify-sig, tamper. Cac lenh con lai cai dat o milestone sau.
 """
 
 import argparse
@@ -8,8 +8,18 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+from PIL import Image
+
+import config
+from imgsign import assets as assets_mod
 from imgsign import keys as keys_mod
+from imgsign import lsb as lsb_mod
+from imgsign import pipeline
+from imgsign import recover as recover_mod
 from imgsign import signer
+from imgsign import tamper as tamper_mod
+from imgsign import watermark as watermark_mod
 
 # Windows console: dam bao in tieng Viet khong loi
 sys.stdout.reconfigure(encoding="utf-8")
@@ -148,6 +158,185 @@ def cmd_verify_sig(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tamper(args: argparse.Namespace) -> int:
+    """Lenh tamper: tao anh gia de demo (text | crop | pixel)."""
+    src, dst = Path(args.png), Path(args.out)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    try:
+        detail = tamper_mod.apply_tamper(src, dst, args.mode)
+    except (ValueError, OSError) as exc:
+        print(f"[{_now()}] Lỗi: {exc}")
+        return 1
+
+    print(f"[{_now()}] [DETECT] Tạo ảnh giả từ '{src.name}' (mode={args.mode}).")
+    print(f"[{_now()}] {detail}")
+    print(f"[{_now()}] Đã lưu ảnh giả: {dst}")
+    return 0
+
+
+def cmd_watermark(args: argparse.Namespace) -> int:
+    """Lenh watermark: chen watermark hien (chu mo lap cheo)."""
+    src, dst = Path(args.png), Path(args.out)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    text = args.text or f"{config.OWNER_NAME} {datetime.now():%Y-%m-%d}"
+    try:
+        watermark_mod.add_visible_watermark(src, dst, text)
+    except (ValueError, OSError) as exc:
+        print(f"[{_now()}] Lỗi: {exc}")
+        return 1
+
+    print(f"[{_now()}] [PROTECT] Đã chèn watermark hiện (chữ mờ) vào '{src.name}'.")
+    print(f"[{_now()}] Nội dung: {text}")
+    print(f"[{_now()}] Đã lưu ảnh: {dst}")
+    return 0
+
+
+def cmd_lsb_embed(args: argparse.Namespace) -> int:
+    """Lenh lsb-embed: giau payload JSON vao bit thap nhat cua anh."""
+    src, dst = Path(args.png), Path(args.out)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    parts = [p.strip() for p in args.msg.split("|") if p.strip()]
+    payload = {
+        "asset_id": parts[0] if parts else "",
+        "owner": parts[1] if len(parts) > 1 else config.OWNER_NAME,
+        "date": f"{datetime.now():%Y-%m-%d}",
+    }
+
+    try:
+        lsb_mod.embed(src, dst, payload)
+    except (ValueError, OSError) as exc:
+        print(f"[{_now()}] Lỗi: {exc}")
+        return 1
+
+    # Thong ke khac biet de chung minh "mat thuong khong thay"
+    a = np.array(Image.open(src).convert("RGB"), dtype=np.int16)
+    b = np.array(Image.open(dst).convert("RGB"), dtype=np.int16)
+    diff = np.abs(a - b)
+    if diff.shape == (0,):
+        diff_pixels, max_dev = 0, 0
+    else:
+        diff_pixels = int((diff.max(axis=2) > 0).sum())
+        max_dev = int(diff.max())
+
+    print(f"[{_now()}] [PROTECT] Đã giấu watermark ẩn LSB vào '{src.name}'.")
+    print(f"[{_now()}] Payload: {payload}")
+    print(f"[{_now()}] Số điểm ảnh khác nhau: {diff_pixels}")
+    print(f"[{_now()}] Độ lệch tối đa mỗi kênh: {max_dev}")
+    print(f"[{_now()}] Đã lưu ảnh: {dst}")
+    return 0
+
+
+def cmd_lsb_read(args: argparse.Namespace) -> int:
+    """Lenh lsb-read: doc watermark an LSB tu anh."""
+    src = Path(args.png)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    payload = lsb_mod.extract(src)
+    if payload is None:
+        print(f"[{_now()}] [DETECT] '{src.name}': không tìm thấy watermark ẩn.")
+        return 0
+
+    print(f"[{_now()}] [DETECT] '{src.name}': đọc được watermark ẩn.")
+    print(f"[{_now()}] Payload: {payload}")
+    return 0
+
+
+VERDICT_LABEL = {
+    "HOP_LE": "HỢP LỆ",
+    "HOP_LE_CANH_BAO": "HỢP LỆ (CẢNH BÁO)",
+    "KHONG_HOP_LE": "KHÔNG HỢP LỆ",
+    "KHONG_XAC_MINH_DUOC": "KHÔNG XÁC MINH ĐƯỢC",
+}
+
+
+def cmd_protect(args: argparse.Namespace) -> int:
+    """Lenh protect: quy trinh bao ve anh (watermark hien -> LSB -> ky)."""
+    src = Path(args.png)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    try:
+        result = pipeline.protect(src, args.name, args.asset_type, args.importance)
+    except (ValueError, OSError) as exc:
+        print(f"[{_now()}] Lỗi: {exc}")
+        return 1
+
+    print(f"[{_now()}] [PROTECT] Đã bảo vệ ảnh '{src.name}' -> asset {result.asset_id}.")
+    print(f"[{_now()}] Bản gốc lưu: {result.original_path}")
+    print(f"[{_now()}] Ảnh đã ký: {result.signed_path}")
+    print(f"[{_now()}] Sidecar: {result.sidecar_path}")
+    print(f"[{_now()}] SHA-256 ảnh đã ký: {result.sha256_signed}")
+    return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Lenh verify: xac minh day du (chu ky + watermark an)."""
+    src = Path(args.png)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    sig = Path(args.sig) if args.sig else None
+    report = pipeline.verify_full(src, sig)
+
+    print(f"[{_now()}] [DETECT] Xác minh đầy đủ ảnh '{src.name}'.")
+    print(f"[{_now()}] Kết luận: {VERDICT_LABEL.get(report.verdict, report.verdict)}")
+    print(f"[{_now()}] Lý do: {report.sig.reason}")
+    print(f"[{_now()}] SHA-256 file: {report.sig.sha256}")
+    if report.lsb_payload is not None:
+        print(f"[{_now()}] Watermark ẩn: đọc được {report.lsb_payload}")
+    else:
+        print(f"[{_now()}] Watermark ẩn: không đọc được")
+    for note in report.notes:
+        print(f"[{_now()}] - {note}")
+    return 0
+
+
+def cmd_assets(args: argparse.Namespace) -> int:
+    """Lenh assets: liet ke bang tai san anh (Identify)."""
+    rows = assets_mod.list_assets()
+    print(f"[{_now()}] [IDENTIFY] Bảng tài sản ảnh ({len(rows)} bản ghi).")
+    if not rows:
+        print(f"[{_now()}] Chưa có tài sản nào.")
+        return 0
+
+    print(f"[{_now()}] {'asset_id':<10} {'mức':<4} {'loại':<12} {'tên':<28} created_at")
+    for a in rows:
+        print(
+            f"[{_now()}] {a.get('asset_id', ''):<10} {a.get('importance', ''):<4} "
+            f"{str(a.get('type', '')):<12} {str(a.get('name', '')):<28} {a.get('created_at', '')}"
+        )
+    return 0
+
+
+def cmd_recover(args: argparse.Namespace) -> int:
+    """Lenh recover: khoi phuc ban da ky va xac minh lai (Recover)."""
+    try:
+        result = recover_mod.recover(args.asset_id, Path(args.out))
+    except (FileNotFoundError, OSError) as exc:
+        print(f"[{_now()}] Lỗi: {exc}")
+        return 1
+
+    status = "HỢP LỆ" if result.valid else "KHÔNG HỢP LỆ"
+    print(f"[{_now()}] [RECOVER] Đã khôi phục '{args.asset_id}' về {args.out}.")
+    print(f"[{_now()}] Kết quả xác minh lại: {status}")
+    print(f"[{_now()}] Lý do: {result.reason}")
+    print(f"[{_now()}] SHA-256 file: {result.sha256}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Chay CLI theo lenh con."""
     parser = build_parser()
@@ -157,6 +346,14 @@ def main(argv: list[str] | None = None) -> int:
         "keygen": cmd_keygen,
         "sign": cmd_sign,
         "verify-sig": cmd_verify_sig,
+        "tamper": cmd_tamper,
+        "watermark": cmd_watermark,
+        "lsb-embed": cmd_lsb_embed,
+        "lsb-read": cmd_lsb_read,
+        "protect": cmd_protect,
+        "verify": cmd_verify,
+        "assets": cmd_assets,
+        "recover": cmd_recover,
     }
 
     handler = handlers.get(args.command)

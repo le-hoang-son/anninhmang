@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ asset_id }} - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Chi tiết tài sản {{ asset_id }} <span class="nist detect">[IDENTIFY]</span></h1>
+
+  {% if asset %}
+    <div class="kv">
+      <div><b>Tên:</b> {{ asset.name }}</div>
+      <div><b>Loại:</b> {{ asset.type }}</div>
+      <div><b>Mức quan trọng:</b> {{ asset.importance }}</div>
+      <div><b>SHA-256 gốc:</b> {{ asset.sha256_original }}</div>
+      <div><b>Thời gian tạo:</b> {{ asset.created_at }}</div>
+    </div>
+  {% else %}
+    <p class="muted">Không có bản ghi trong assets.json, nhưng vẫn có ảnh đã ký trong data/signed/.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Ảnh đã ký</h2>
+  {% if signed_exists %}
+    <img class="thumb" src="{{ url_for('media', kind='signed', filename=signed_name) }}" alt="Anh da ky">
+    <div style="margin-top:10px;">
+      <a class="dl" href="{{ url_for('download', asset_id=asset_id, kind='png') }}">Tải ảnh đã ký (.png)</a><br>
+      <a class="dl" href="{{ url_for('download', asset_id=asset_id, kind='sig') }}">Tải file chữ ký (.sig.json)</a>
+    </div>
+
+    <form method="post" style="margin-top:14px;">
+      <button type="submit">Khôi phục bản đã ký <span class="pill">[RECOVER]</span></button>
+    </form>
+    <p class="muted">Khôi phục sẽ chép bản đã ký về thư mục data/recovered/ và xác minh lại chữ ký.</p>
+  {% else %}
+    <p class="muted">Chưa có ảnh đã ký cho asset này trong data/signed/.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Lịch sử xác minh của tài sản</h2>
+  {% if history %}
+    <table>
+      <tr><th>Thời gian</th><th>File</th><th>Kết luận</th><th>Chi tiết</th></tr>
+      {% for line in history %}
+        {% set parts = line.split(' | ') %}
+        <tr>
+          <td class="muted">{{ parts[0] }}</td>
+          <td>{{ parts[1] if parts|length > 1 else '' }}</td>
+          <td>
+            {% if parts|length > 2 and parts[2] == 'HOP_LE' %}<span class="badge ok">HỢP LỆ</span>
+            {% elif parts|length > 2 and parts[2] == 'KHONG_HOP_LE' %}<span class="badge bad">KHÔNG HỢP LỆ</span>
+            {% elif parts|length > 2 %}<span class="badge warn">{{ parts[2] }}</span>{% endif %}
+          </td>
+          <td class="muted">{{ parts[3] if parts|length > 3 else '' }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">Chưa có dòng log nào chứa {{ asset_id }}.</p>
+  {% endif %}
+</div>
+
+<p><a class="dl" href="{{ url_for('assets') }}">&larr; Về bảng tài sản</a></p>
+{% endblock %}

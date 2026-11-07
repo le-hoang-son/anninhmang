@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Thử cảnh báo - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Thử cảnh báo ntfy <span class="nist respond">[RESPOND]</span></h1>
+  <p class="muted">Kiểm tra cấu hình kênh ntfy và gửi một thông báo thử. Chỉ hiển thị 3 ký tự đầu
+  của tên kênh để không lộ toàn bộ tên kênh.</p>
+
+  <div class="kv">
+    <div><b>Máy chủ ntfy:</b> {{ url }}</div>
+    <div><b>Trạng thái cấu hình:</b>
+      {% if configured %}Đã cấu hình (kênh: {{ topic_hint }}){% else %}Chưa cấu hình{% endif %}
+    </div>
+  </div>
+
+  {% if not configured %}
+    <p class="muted">Chưa đặt biến môi trường <code>IMGSIGN_NTFY_TOPIC</code>. Hệ thống vẫn chạy bình
+    thường nhưng sẽ bỏ qua việc gửi cảnh báo.</p>
+  {% endif %}
+
+  <form method="post">
+    <button type="submit">Gửi thử cảnh báo</button>
+  </form>
+</div>
+
+{% if result %}
+<div class="card">
+  <h2>Kết quả gửi thử</h2>
+  {% if result.sent %}
+    <div class="verdict ok" style="font-size:18px;">GỬI THÀNH CÔNG</div>
+  {% else %}
+    <div class="verdict bad" style="font-size:18px;">GỬI THẤT BẠI (chưa cấu hình kênh hoặc lỗi mạng)</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

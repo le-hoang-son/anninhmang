@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Xác minh lô - ImgSign{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Xác minh theo lô <span class="nist detect">[DETECT]</span></h1>
+  <p class="muted">Chọn tối đa {{ batch_max }} ảnh PNG. Mỗi ảnh tự tìm file chữ ký (sidecar)
+  theo asset_id đọc từ watermark ẩn LSB, giống trang Xác minh. Nếu có ảnh giả, hệ thống chỉ
+  gửi <b>một</b> thông báo cảnh báo tóm tắt cho cả lô.</p>
+
+  <form method="post" enctype="multipart/form-data">
+    <label>Chọn nhiều ảnh PNG (giữ Ctrl để chọn nhiều)</label>
+    <input type="file" name="pngs" accept="image/png" multiple required>
+    <button type="submit">Xác minh lô</button>
+  </form>
+</div>
+
+{% if rows %}
+<div class="card">
+  <h2>Kết quả xác minh lô</h2>
+  <p class="muted">Tổng: {{ summary.total }} ảnh — phát hiện <b>{{ summary.fake_count }}</b> ảnh không hợp lệ.</p>
+  {% if summary.fake_count > 0 %}
+    <div class="verdict {{ 'ok' if summary.sent else 'warn' }}" style="font-size:18px;">
+      {% if summary.sent %}Đã gửi một cảnh báo tóm tắt cho cả lô.{% else %}Có ảnh giả nhưng chưa cấu hình ntfy (bỏ qua gửi cảnh báo).{% endif %}
+    </div>
+  {% endif %}
+  <table>
+    <tr><th>Tên file</th><th>Kết luận</th><th>Lý do</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.file }}</td>
+      <td><span class="badge {{ r.cls }}">{{ r.label }}</span></td>
+      <td class="muted">{{ r.reason }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}
