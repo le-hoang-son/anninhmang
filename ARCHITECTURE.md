@@ -18,6 +18,7 @@ imgsign/
 │  ├─ watermark.py            # watermark hiện (Pillow)
 │  ├─ lsb.py                  # watermark ẩn (numpy)
 │  ├─ pipeline.py             # protect() và verify_full()
+│  ├─ docfile.py              # watermark ẩn DOCX + ký tài liệu (docx/pdf)
 │  ├─ assets.py               # bảng tài sản ảnh (assets.json)
 │  ├─ logger.py               # ghi verify.log
 │  ├─ notifier.py             # gửi ntfy
@@ -26,12 +27,12 @@ imgsign/
 │  ├─ app.py                  # Flask
 │  └─ templates/              # base.html index.html protect.html verify.html assets.html logs.html
 ├─ tests/
-│  ├─ test_signer.py  test_lsb.py  test_pipeline.py
+│  ├─ test_signer.py  test_lsb.py  test_pipeline.py  test_docfile.py
 ├─ samples/                   # ảnh PNG mẫu của người dùng (goc.png)
 ├─ keys/                      # private.pem public.pem  (KHÔNG commit)
 └─ data/                      # KHÔNG commit
-   ├─ originals/              # <asset_id>.png  bản gốc trước khi bảo vệ
-   ├─ signed/                 # <asset_id>.png + <asset_id>.png.sig.json
+   ├─ originals/              # <asset_id>.<ext>  bản gốc trước khi bảo vệ
+   ├─ signed/                 # <asset_id>.png|.docx|.pdf + <asset_id>.<ext>.sig.json
    ├─ logs/verify.log
    └─ assets.json
 ```
@@ -74,11 +75,26 @@ def embed(src: Path, dst: Path, payload: dict) -> Path    # raise ValueError n�
 def extract(src: Path) -> dict | None                      # None nếu không có/sai magic/sai CRC
 
 # pipeline.py
-def protect(src: Path, asset_name: str, asset_type: str, importance: int) -> ProtectResult
-# Làm đúng thứ tự: lưu gốc -> đăng ký asset -> watermark hiện -> LSB -> lưu data/signed -> ký -> ghi log
+def protect(src: Path, asset_name: str, asset_type: str, importance: int,
+            visible_watermark: bool = True) -> ProtectResult
+# Thứ tự theo loại file (KÝ luôn là bước cuối):
+#   PNG : lưu gốc -> đăng ký asset -> (watermark hiện nếu visible_watermark=True) -> LSB -> lưu <id>.png -> ký -> log
+#   DOCX: lưu gốc -> đăng ký asset -> watermark ẩn (metadata) -> lưu <id>.docx -> ký -> log
+#   PDF : lưu gốc -> đăng ký asset -> lưu <id>.pdf -> ký -> log
+# visible_watermark: chỉ có ý nghĩa với PNG. False = bỏ watermark hiện, vẫn giữ LSB + ký.
 def verify_full(png_path: Path, sidecar_path: Path | None) -> FullReport
+# ProtectResult: dataclass(asset_id, signed_path, sidecar_path, original_path, sha256_signed,
+#                        kind: str = "png", visible_watermark: bool = True)
 # FullReport: dataclass(verdict: str, sig: VerifyResult, lsb_payload: dict | None, notes: list[str])
 # verdict ∈ {"HOP_LE", "HOP_LE_CANH_BAO", "KHONG_HOP_LE", "KHONG_XAC_MINH_DUOC"}
+
+# docfile.py (FR-21, FR-22) - chỉ dùng thư viện chuẩn
+def detect_kind(path: Path) -> str                        # 'png' | 'docx' | 'pdf'; raise ValueError nếu khác
+def validate_docx(path: Path) -> None                     # raise ValueError nếu không phải ZIP OOXML
+def validate_pdf(path: Path) -> None                      # raise ValueError nếu thiếu header %PDF-
+def embed_docx_metadata(src: Path, dst: Path, payload: dict) -> Path  # ghi watermark ẩn vào docProps/core.xml
+def extract_docx_metadata(path: Path) -> dict | None      # None nếu không có/sai định dạng
+def find_signed(signed_dir: Path, asset_id: str) -> Path | None       # tìm <id>.png|.docx|.pdf
 
 # assets.py
 def register_asset(name, asset_type, importance, sha256_original) -> dict   # sinh asset_id dạng "IMG-0001"
@@ -146,6 +162,18 @@ Xác minh: (1) tính SHA-256 file, so với `sha256` trong sidecar; (2) verify c
 `POST {NTFY_URL}/{NTFY_TOPIC}`, body là thông điệp tiếng Việt không dấu hoặc UTF-8, header `Title`, `Priority: high`, `Tags: warning`. Timeout 5 giây, bắt mọi lỗi.
 Chỉ gửi khi verdict = `KHONG_HOP_LE`.
 
+### 4.7 Watermark ẩn trong DOCX (FR-21)
+- DOCX là file ZIP (OOXML). Chỉ sửa part `docProps/core.xml`, các part khác giữ nguyên byte.
+- Token giấu trong thẻ `<cp:keywords>`: `IMGSIGN-B64:<base64(JSON)>` với `JSON = {"asset_id","owner","date"}`.
+- Khi chèn: giữ lại các keyword cũ của người dùng, chỉ nối thêm token; nếu chưa có thẻ `<cp:keywords>` thì tạo mới trước `</cp:coreProperties>`.
+- `extract`: tìm token bằng regex `IMGSIGN-B64:([A-Za-z0-9+/]+={0,2})`, base64-decode, parse JSON; sai bước nào trả `None`.
+- PDF không có watermark: chỉ ký toàn vẹn byte.
+
+### 4.8 Tài liệu đã ký trong `data/signed/`
+- `<asset_id>.png` (ảnh), `<asset_id>.docx` (tài liệu Word), `<asset_id>.pdf` (PDF).
+- Sidecar luôn là `<asset_id>.<ext>.sig.json` (ví dụ `IMG-0001.docx.sig.json`).
+- `docfile.find_signed` dò theo thứ tự `.png` -> `.docx` -> `.pdf` để hỗ trợ `/download`, khôi phục và chi tiết tài sản.
+
 ## 5. CLI (`cli.py`)
 
 ```
@@ -155,10 +183,11 @@ python cli.py verify-sig <anh.png> [--sig file.json]    # chỉ chữ ký (M1)
 python cli.py watermark <anh.png> <out.png> [--text ...]# M3
 python cli.py lsb-embed <anh.png> <out.png> --msg ...   # M4
 python cli.py lsb-read <anh.png>                        # M4
-python cli.py protect <anh.png> --name ... --type ... --importance 1|2|3   # M5/M6
-python cli.py verify <anh.png> [--sig file.json]        # verify_full (M5)
+python cli.py protect <file> --name ... --type ... --importance 1|2|3   # M5/M6/M9 (file: .png/.docx/.pdf)
+python cli.py verify <file> [--sig file.json]           # verify_full (M5/M9)
 python cli.py assets                                    # liệt kê tài sản (M6)
-python cli.py recover <asset_id> <out.png>              # M6
+python cli.py recover <asset_id> <out>                  # M6 (out có đuôi theo tài sản)
+python cli.py docx-read <file.docx>                     # đọc watermark ẩn metadata DOCX (M9)
 python cli.py tamper <anh.png> <out.png> --mode text|crop|pixel   # tạo ảnh giả để demo (M2)
 ```
 Mỗi lệnh in kết quả có dòng thời gian đầu tiên.
@@ -168,11 +197,11 @@ Mỗi lệnh in kết quả có dòng thời gian đầu tiên.
 | Route | Method | Việc |
 |-------|--------|------|
 | `/` | GET | (FR-15) Bảng điều khiển: thẻ số liệu (tài sản, lần xác minh, hợp lệ, không hợp lệ), biểu đồ cột CSS, 5 sự kiện gần nhất có màu |
-| `/protect` | GET/POST | Upload PNG + tên + loại + mức quan trọng -> chạy `protect` -> hiện kết quả, link tải ảnh đã ký và sidecar |
-| `/verify` | GET/POST | Upload PNG (+ sidecar tùy chọn) -> `verify_full` -> hiện kết luận màu xanh/đỏ/vàng |
+| `/protect` | GET/POST | Upload file (PNG/DOCX/PDF) + tên + loại + mức quan trọng -> chạy `protect` -> hiện kết quả, link tải file đã ký và sidecar |
+| `/verify` | GET/POST | Upload file (PNG/DOCX/PDF) (+ sidecar tùy chọn) -> `verify_full` -> hiện kết luận màu xanh/đỏ/vàng |
 | `/assets` | GET | Bảng tài sản |
 | `/logs` | GET | (FR-18) Lọc theo kết luận (`verdict`), tìm theo tên ảnh (`q`), phân trang 50 dòng (`page`) |
-| `/download/<asset_id>/<kind>` | GET | `kind` chỉ nhận `png` hoặc `sig`; kiểm `asset_id` khớp regex `^IMG-\d{4}$` |
+| `/download/<asset_id>/<kind>` | GET | `kind` nhận `png`, `doc` hoặc `sig`; `doc` trả file `.docx`/`.pdf` với MIME tương ứng; kiểm `asset_id` khớp regex `^IMG-\d{4}$` |
 | `/compare` | GET/POST | (FR-12) Chọn asset + upload ảnh nghi giả; so bằng `ImageChops.difference`; hiện 3 ảnh, số điểm ảnh khác, tỷ lệ % |
 | `/nist` | GET | (FR-13) Bảng 5 ô NIST kèm số liệu thật tính từ `assets.json`, `data/signed`, `verify.log` |
 | `/assets/<asset_id>` | GET/POST | (FR-14) Chi tiết tài sản, lịch sử xác minh riêng; POST = khôi phục |

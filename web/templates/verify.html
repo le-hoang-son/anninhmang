@@ -1,13 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Xác minh ảnh - ImgSign{% endblock %}
+{% block title %}Xác minh ảnh / tài liệu - ImgSign{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>Xác minh ảnh</h1>
-  <p class="muted">Tải ảnh PNG cần kiểm tra. File chữ ký (.sig.json) là tùy chọn; nếu bỏ trống,
-  hệ thống tự tìm theo asset_id đọc từ watermark ẩn.</p>
+  <h1>Xác minh ảnh / tài liệu</h1>
+  <p class="muted">Tải file cần kiểm tra (PNG, DOCX hoặc PDF). File chữ ký (.sig.json) là tùy chọn; nếu bỏ trống,
+  hệ thống tự tìm theo asset_id đọc từ watermark ẩn (LSB ở PNG, metadata ở DOCX). PDF không có watermark ẩn
+  nên cần nộp kèm file chữ ký.</p>
   <form method="post" enctype="multipart/form-data">
-    <label>Ảnh PNG</label>
-    <input type="file" name="png" accept="image/png" required>
+    <label>File (PNG, DOCX hoặc PDF)</label>
+    <input type="file" name="png" accept=".png,.docx,.pdf,image/png" required>
 
     <label>File chữ ký (.sig.json) - tùy chọn</label>
     <input type="file" name="sig" accept=".json,application/json">
@@ -29,7 +30,19 @@
     <div><b>Lý do:</b> {{ report.reason }}</div>
     <div><b>SHA-256 file:</b> {{ report.sha256 }}</div>
     <div><b>Watermark ẩn:</b>
-      {% if report.lsb_ok %}đọc được {{ report.lsb_payload }}{% else %}KHÔNG đọc được{% endif %}
+      {% if report.kind == 'pdf' %}không áp dụng (PDF chỉ ký, không watermark)
+      {% elif report.wm %}
+        <span class="badge ok">đọc được</span>
+        <span class="muted">({{ report.wm_method }})</span>
+        <div style="margin-left:12px;">
+          <div><b>asset_id:</b> {{ report.wm.asset_id }}</div>
+          <div><b>owner:</b> {{ report.wm.owner }}</div>
+          <div><b>date:</b> {{ report.wm.date }}</div>
+        </div>
+      {% else %}
+        <span class="badge bad">KHÔNG đọc được</span>
+        <span class="muted">({{ report.wm_method }})</span>
+      {% endif %}
     </div>
 
     {% if report.sidecar_missing %}

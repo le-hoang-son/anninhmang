@@ -1,15 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Bảo vệ ảnh - ImgSign{% endblock %}
+{% block title %}Bảo vệ ảnh / tài liệu - ImgSign{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>Bảo vệ ảnh</h1>
-  <p class="muted">Quy trình: watermark hiện &rarr; watermark ẩn LSB &rarr; lưu PNG &rarr; <b>ký file cuối cùng</b>.</p>
+  <h1>Bảo vệ ảnh / tài liệu</h1>
+  <p class="muted">Quy trình ảnh: watermark hiện &rarr; watermark ẩn LSB &rarr; lưu PNG &rarr; <b>ký file cuối cùng</b>.
+  Tài liệu: DOCX giấu watermark ẩn vào metadata, PDF chỉ ký &mdash; sau đó <b>ký file cuối cùng</b>.</p>
   <form method="post" enctype="multipart/form-data">
     <label>Tên tài sản</label>
     <input type="text" name="name" placeholder="Ví dụ: Bang tot nghiep A" required>
 
-    <label>Loại ảnh</label>
-    <input type="text" name="type" placeholder="Ví dụ: van bang" required>
+    <label>Loại</label>
+    <input type="text" name="type" placeholder="Ví dụ: van bang / hop dong" required>
 
     <label>Mức quan trọng</label>
     <select name="importance">
@@ -18,10 +19,14 @@
       <option value="3" selected>3 - Cao</option>
     </select>
 
-    <label>Chọn ảnh PNG</label>
-    <input type="file" name="png" accept="image/png" required>
+    <label><input type="checkbox" name="visible_watermark" value="1" checked>
+      Chèn watermark hiện (chữ mờ "Tên + ngày" chéo ảnh) — chỉ áp dụng cho PNG
+    </label>
 
-    <button type="submit">Bảo vệ ảnh</button>
+    <label>Chọn file (PNG, DOCX hoặc PDF)</label>
+    <input type="file" name="png" accept=".png,.docx,.pdf,image/png" required>
+
+    <button type="submit">Bảo vệ</button>
   </form>
 </div>
 
@@ -30,25 +35,52 @@
   <h2>Kết quả bảo vệ</h2>
   <div class="verdict ok">
     ĐÃ BẢO VỆ
-    <span class="sub">Asset: {{ result.asset_id }}</span>
+    <span class="sub">Asset: {{ result.asset_id }} &mdash; định dạng {{ result.kind }}</span>
   </div>
 
+  {% if result.kind == 'png' %}
   <div class="grid2">
     <div>
       <h3>Ảnh trước (bản gốc)</h3>
       <img class="thumb" src="{{ url_for('media', kind='original', filename=result.original_name) }}" alt="Anh goc">
     </div>
     <div>
-      <h3>Ảnh sau (đã watermark + ký)</h3>
+      <h3>Ảnh sau ({% if result.visible_watermark %}đã watermark hiện + ẩn + ký{% else %}chỉ watermark ẩn + ký{% endif %})</h3>
       <img class="thumb" src="{{ url_for('media', kind='signed', filename=result.signed_name) }}" alt="Anh da ky">
     </div>
   </div>
+  {% else %}
+  <p class="muted">Tài liệu {{ result.kind | upper }} đã được ký. Không xem trước trực tiếp trong trình duyệt;
+  hãy tải file bên dưới để mở bằng Word/trình đọc PDF.</p>
+  {% endif %}
 
   <div class="kv" style="margin-top:14px;">
-    <div><b>SHA-256 ảnh đã ký:</b> {{ result.sha256 }}</div>
+    <div><b>File đã ký:</b> {{ result.signed_name }}</div>
+    <div><b>SHA-256 file đã ký:</b> {{ result.sha256 }}</div>
+    {% if result.kind == 'png' %}
+    <div><b>Watermark hiện (chữ mờ):</b>
+      {% if result.visible_watermark %}<span class="badge ok">CÓ</span>{% else %}<span class="badge warn">KHÔNG</span>{% endif %}
+    </div>
+    {% endif %}
   </div>
 
+  <h3 style="margin-bottom:4px;">Watermark ẩn đã nhúng</h3>
+  <div class="kv">
+    <div><b>Phương pháp:</b> {{ result.wm_method }}</div>
+    {% if result.wm %}
+      <div><b>asset_id:</b> {{ result.wm.asset_id }}</div>
+      <div><b>owner:</b> {{ result.wm.owner }}</div>
+      <div><b>date:</b> {{ result.wm.date }}</div>
+    {% else %}
+      <div class="muted">Không áp dụng cho định dạng này (PDF chỉ ký).</div>
+    {% endif %}
+  </div>
+
+  {% if result.kind == 'png' %}
   <a class="dl" href="{{ url_for('download', asset_id=result.asset_id, kind='png') }}">Tải ảnh đã ký (.png)</a><br>
+  {% else %}
+  <a class="dl" href="{{ url_for('download', asset_id=result.asset_id, kind='doc') }}">Tải tài liệu đã ký (.{{ result.kind }})</a><br>
+  {% endif %}
   <a class="dl" href="{{ url_for('download', asset_id=result.asset_id, kind='sig') }}">Tải file chữ ký (.sig.json)</a>
 </div>
 {% endif %}

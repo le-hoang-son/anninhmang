@@ -18,11 +18,13 @@
 | T12 | ntfy lỗi mạng | Đặt topic sai hoặc tắt mạng rồi verify ảnh giả | Chương trình vẫn chạy, log ghi "gửi cảnh báo thất bại" |
 | T13 | Bảo mật web | Thử path traversal, upload file đổi đuôi, file quá 10 MB | Bị từ chối, không lộ file |
 | T14 | LSB không nhìn thấy | So ảnh trước/sau `lsb-embed` | Độ lệch tối đa mỗi kênh = 1 |
+| T15 | Tài liệu DOCX | `protect` file `.docx` rồi `verify`; sau đó sửa 1 byte file rồi `verify` | Lần đầu HOP_LE (đọc được watermark metadata); sau khi sửa KHONG_HOP_LE |
+| T16 | Tài liệu PDF | `protect` file `.pdf` rồi `verify` kèm sidecar; bỏ sidecar rồi `verify` | Có sidecar HOP_LE; bỏ sidecar KHONG_XAC_MINH_DUOC |
 
 Lưu ý T8: sau khi thử phải khôi phục khóa gốc (sao lưu `keys/` trước khi thử).
 
 ## 2. Tự động hóa
-- `pytest` bao phủ T1, T2, T3, T4, T5, T6, T7, T9, T10, T11, T12, T14 (có test riêng cho `lsb.py`, `signer.py`, `pipeline.py`, `web/app.py`).
+- `pytest` bao phủ T1, T2, T3, T4, T5, T6, T7, T9, T10, T11, T12, T14, T15, T16 (có test riêng cho `lsb.py`, `signer.py`, `pipeline.py`, `docfile.py`, `web/app.py`).
 - `demo.py` chạy tuần tự T1, T2, T3, T4, T11 có tiêu đề từng bước để người dùng chụp ảnh.
 - T8 và T13 kiểm bằng tay (T8 cần sao lưu `keys/` trước; T13 có thêm smoke HTTP tự động trong giai đoạn W1).
 - `test_web.py` kiểm secret_key không hardcode, giới hạn tần suất POST trả 429, không route nào trả khóa riêng
@@ -53,6 +55,8 @@ Chụp toàn màn hình, thấy rõ giờ và tên máy. Đặt tên file `EV-01
 | EV-18 | Kết quả thử bảo mật web T13 bị từ chối | M7 |
 | EV-19 | `pytest -q` toàn bộ xanh | M8 |
 | EV-20 | `demo.py` chạy trọn vẹn | M8 |
+| EV-32 | Web: `/protect` tài liệu `.docx` + tải file đã ký; `/verify` HỢP LỆ | M9 |
+| EV-33 | `docx-read` đọc watermark ẩn metadata; `verify` file DOCX bị sửa = KHÔNG HỢP LỆ | M9 |
 
 ## 4. Sơ đồ nên vẽ (diagrams.net, làm tay)
 1. Sơ đồ khối hệ thống: người phát hành, người kiểm tra, các module, thư mục dữ liệu, ntfy.

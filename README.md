@@ -1,8 +1,8 @@
 # ImgSign — Chống giả mạo và làm giả hình ảnh bằng watermark và chữ ký số
 
-Đồ án môn **An ninh mạng**. Hệ thống giúp chứng minh một tấm ảnh là **nguyên bản, chưa bị sửa**, và **phát hiện ảnh bị làm giả**. Ánh xạ theo **NIST CSF 1.1** (Identify, Protect, Detect, Respond, Recover).
+Đồ án môn **An ninh mạng**. Hệ thống giúp chứng minh một **ảnh hoặc tài liệu** (`.png`, `.docx`, `.pdf`) là **nguyên bản, chưa bị sửa**, và **phát hiện file bị làm giả**. Ánh xạ theo **NIST CSF 1.1** (Identify, Protect, Detect, Respond, Recover).
 
-Ý tưởng: một đơn vị (ví dụ trường học) phát hành ảnh bằng tốt nghiệp. Hệ thống dán watermark hiện, giấu watermark ẩn LSB, rồi **ký số** file PNG cuối cùng. Nếu ai sửa ảnh (đổi tên, cắt mép, đổi 1 điểm ảnh), hệ thống báo **KHÔNG HỢP LỆ** và gửi cảnh báo.
+Ý tưởng: một đơn vị (ví dụ trường học) phát hành ảnh bằng tốt nghiệp hoặc hợp đồng. Hệ thống dán watermark hiện, giấu watermark ẩn (LSB ở PNG, metadata ở DOCX), rồi **ký số** file cuối cùng. Nếu ai sửa file (đổi tên, cắt mép, đổi 1 điểm ảnh, sửa 1 byte tài liệu), hệ thống báo **KHÔNG HỢP LỆ** và gửi cảnh báo. PDF chỉ được ký để bảo vệ toàn vẹn (không watermark).
 
 ---
 
@@ -53,9 +53,18 @@ Kiểm tra nhanh:
 
 # M5/M6 - Quy trình bảo vệ đầy đủ + xác minh + tài sản + khôi phục
 .\.venv\Scripts\python.exe cli.py protect samples/goc.png --name "Bang tot nghiep A" --type "van bang" --importance 3
+# Bỏ watermark hiện (chỉ giữ watermark ẩn LSB + chữ ký), áp dụng cho PNG:
+.\.venv\Scripts\python.exe cli.py protect samples/goc.png --name "Bang tot nghiep A" --type "van bang" --importance 3 --no-visible-watermark
 .\.venv\Scripts\python.exe cli.py verify data/signed/IMG-0001.png
 .\.venv\Scripts\python.exe cli.py assets
 .\.venv\Scripts\python.exe cli.py recover IMG-0001 samples/recovered.png
+
+# M9 - Bảo vệ tài liệu DOCX (watermark ẩn metadata) và PDF (chỉ ký)
+.\.venv\Scripts\python.exe cli.py protect samples/goc.docx --name "Hop dong A" --type "hop dong" --importance 3
+.\.venv\Scripts\python.exe cli.py docx-read data/signed/IMG-0002.docx
+.\.venv\Scripts\python.exe cli.py verify data/signed/IMG-0002.docx
+.\.venv\Scripts\python.exe cli.py protect samples/goc.pdf --name "Bao cao B" --type "bao cao" --importance 2
+.\.venv\Scripts\python.exe cli.py verify data/signed/IMG-0003.pdf --sig data/signed/IMG-0003.pdf.sig.json
 
 # M8 - Kịch bản demo tự động (T1, T2, T3, T4, T11)
 .\.venv\Scripts\python.exe demo.py
@@ -82,8 +91,8 @@ Các trang:
 | Trang | Việc |
 |-------|------|
 | `/` | Bảng điều khiển: thẻ số liệu (tài sản, lần xác minh, hợp lệ, không hợp lệ), biểu đồ cột CSS, 5 sự kiện gần nhất có màu |
-| `/protect` | Upload PNG + tên + loại + mức quan trọng → bảo vệ ảnh, tải ảnh đã ký và sidecar |
-| `/verify` | Upload PNG (kèm sidecar tùy chọn) → kết luận HỢP LỆ / KHÔNG HỢP LỆ / cảnh báo |
+| `/protect` | Upload file (PNG/DOCX/PDF) + tên + loại + mức quan trọng → bảo vệ file, tải file đã ký và sidecar |
+| `/verify` | Upload file (PNG/DOCX/PDF) (kèm sidecar tùy chọn) → kết luận HỢP LỆ / KHÔNG HỢP LỆ / cảnh báo |
 | `/verify-batch` | Xác minh lô: chọn tối đa 10 ảnh PNG, mỗi ảnh tự tìm sidecar theo LSB; bảng kết quả; ntfy tối đa 1 thông báo tóm tắt |
 | `/compare` | So sánh ảnh nghi giả với bản đã ký: vẽ khung đỏ vùng khác biệt, hiện 3 ảnh + số điểm ảnh khác, tỷ lệ % |
 | `/assets` | Bảng tài sản; bấm vào `asset_id` để xem chi tiết |
@@ -94,7 +103,7 @@ Các trang:
 | `/alert-test` | Trạng thái ntfy (chỉ 3 ký tự đầu tên kênh) + nút gửi thử cảnh báo |
 | `/demo-tamper` | **Chỉ dùng cho demo**: tạo ảnh giả trong `data/tampered/` để đưa sang `/verify` |
 
-Lưu ý bảo mật (đã áp dụng): giới hạn upload 10 MB, tên file lưu bằng `uuid4`, chỉ nhận PNG (kiểm bằng Pillow), không cho nhập đường dẫn tùy ý, `debug=False`, khóa phiên đọc từ biến môi trường (không hardcode), giới hạn tần suất POST 20 lần/phút mỗi IP (vượt quá trả 429), chống CSV injection khi xuất log.
+Lưu ý bảo mật (đã áp dụng): giới hạn upload 10 MB, tên file lưu bằng `uuid4`, chỉ nhận PNG/DOCX/PDF (PNG kiểm bằng Pillow; DOCX kiểm cấu trúc ZIP OOXML; PDF kiểm header `%PDF-`), không cho nhập đường dẫn tùy ý, `debug=False`, khóa phiên đọc từ biến môi trường (không hardcode), giới hạn tần suất POST 20 lần/phút mỗi IP (vượt quá trả 429), chống CSV injection khi xuất log.
 
 ---
 
@@ -138,6 +147,7 @@ doananninhmang/
 │  ├─ lsb.py                 # watermark ẩn LSB (numpy)
 │  ├─ tamper.py              # tạo ảnh giả cho demo (text/crop/pixel)
 │  ├─ pipeline.py            # protect() và verify_full()
+│  ├─ docfile.py             # watermark ẩn DOCX + xử lý tài liệu docx/pdf
 │  ├─ compare.py             # so sánh ảnh bằng ImageChops.difference (web /compare)
 │  ├─ assets.py              # bảng tài sản (data/assets.json)
 │  ├─ logger.py              # ghi data/logs/verify.log
@@ -148,12 +158,12 @@ doananninhmang/
 │  ├─ templates/             # base, index, protect, verify, verify_batch, compare, assets,
 │  │                         #   asset_detail, nist, keys, logs, alert_test, demo_tamper, 404, 429
 │  └─ static/style.css
-├─ tests/                    # test_signer.py, test_lsb.py, test_pipeline.py, test_web.py
-├─ samples/                  # ảnh PNG mẫu (goc.png)
+├─ tests/                    # test_signer.py, test_lsb.py, test_pipeline.py, test_docfile.py, test_web.py
+├─ samples/                  # file mẫu (goc.png, goc.docx, goc.pdf)
 ├─ keys/                     # private.pem, public.pem  (KHÔNG commit)
 └─ data/                     # KHÔNG commit
-   ├─ originals/             # <asset_id>.png  bản gốc trước khi bảo vệ
-   ├─ signed/                # <asset_id>.png + <asset_id>.png.sig.json
+   ├─ originals/             # <asset_id>.<ext>  bản gốc trước khi bảo vệ
+   ├─ signed/                # <asset_id>.png|.docx|.pdf + <asset_id>.<ext>.sig.json
    ├─ tampered/              # ảnh giả tạo từ trang /demo-tamper
    ├─ compare/               # ảnh nghi giả + ảnh đánh dấu vùng khác biệt (trang /compare)
    ├─ recovered/             # bản khôi phục từ trang chi tiết tài sản
@@ -161,13 +171,15 @@ doananninhmang/
    └─ assets.json
 ```
 
-**Quy trình bảo vệ (thứ tự bất biến):**
+**Quy trình bảo vệ (thứ tự bất biến - KÝ luôn là bước cuối):**
 
 ```text
-ảnh gốc → (1) watermark hiện → (2) watermark ẩn LSB → (3) lưu PNG → (4) KÝ file PNG cuối cùng
+ảnh gốc (PNG) → (1) watermark hiện → (2) watermark ẩn LSB → (3) lưu PNG → (4) KÝ file PNG cuối cùng
+DOCX          → (1) watermark ẩn metadata → (2) lưu DOCX          → (3) KÝ file DOCX cuối cùng
+PDF           → (1) lưu PDF                                       → (2) KÝ file PDF cuối cùng (không watermark)
 ```
 
-Chữ ký luôn là bước cuối vì nó phủ lên **từng byte** của file PNG cuối cùng.
+Chữ ký luôn là bước cuối vì nó phủ lên **từng byte** của file cuối cùng.
 
 ---
 
@@ -178,6 +190,7 @@ Chữ ký luôn là bước cuối vì nó phủ lên **từng byte** của file
 - Ảnh bị sửa nhẹ vùng nhỏ có thể vẫn còn watermark ẩn đọc được nhưng chữ ký vẫn báo **KHÔNG HỢP LỆ**. Đây là hành vi đúng, hệ thống kết luận theo chữ ký.
 - Chữ ký chứng minh "file này do người giữ khóa riêng phát hành, chưa bị đổi", **không** chứng minh nội dung ảnh là sự thật.
 - Hệ thống **không** chống được nén JPG, cắt xén, phóng to thu nhỏ ở mức watermark ẩn (ngoài phạm vi đồ án).
+- **Tài liệu DOCX/PDF**: chữ ký phủ lên toàn bộ byte file. Với DOCX, mở rồi lưu lại bằng Word (dù không sửa nội dung) cũng làm đổi byte file ZIP nên báo **KHÔNG HỢP LỆ** — đúng với mục tiêu "toàn vẹn byte". PDF chỉ được ký, không có watermark ẩn.
 
 ---
 
@@ -186,7 +199,7 @@ Chữ ký luôn là bước cuối vì nó phủ lên **từng byte** của file
 | Chức năng | NIST | Module |
 |-----------|------|--------|
 | Bảng tài sản ảnh | IDENTIFY (ID.AM) | `assets.py`, `cli.py assets`, `/assets` |
-| Watermark + ký số | PROTECT (PR.DS) | `watermark.py`, `lsb.py`, `signer.py`, `pipeline.py` |
+| Watermark + ký số | PROTECT (PR.DS) | `watermark.py`, `lsb.py`, `docfile.py`, `signer.py`, `pipeline.py` |
 | Phát hiện sửa đổi | DETECT (DE.CM) | `pipeline.verify_full()`, `/verify` |
 | Ghi log + cảnh báo | RESPOND (RS.AN, RS.CO) | `logger.py`, `notifier.py` |
 | Khôi phục bản gốc | RECOVER (RC.RP) | `recover.py`, `cli.py recover` |

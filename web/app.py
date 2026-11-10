@@ -41,6 +41,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 import config
 from imgsign import assets as assets_mod
 from imgsign import compare as compare_mod
+from imgsign import docfile
 from imgsign import keys as keys_mod
 from imgsign import logger as logger_mod
 from imgsign import lsb as lsb_mod
@@ -54,6 +55,12 @@ COMPARE_DIR = config.DATA_DIR / "compare"
 RECOVERED_DIR = config.DATA_DIR / "recovered"
 ASSET_ID_RE = re.compile(r"^IMG-\d{4}$")
 TAMPER_MODE_RE = re.compile(r"^(text|crop|pixel)$")
+# Duoi file duoc phep upload (chong dat ten la); chi lay phan duoi, khong dung ten goc lam duong dan
+_ALLOWED_EXT = (".png", ".docx", ".pdf")
+_DOC_MIME = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pdf": "application/pdf",
+}
 
 # Ten file duoc phep phuc vu theo tung loai thu muc (chong path traversal)
 _MEDIA_ALLOW = {
@@ -147,6 +154,12 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _safe_ext(filename: str) -> str:
+    """Lay duoi file an toan tu ten goc; chi cho phep .png/.docx/.pdf, mac dinh .png."""
+    ext = Path(secure_filename(filename or "")).suffix.lower()
+    return ext if ext in _ALLOWED_EXT else ".png"
+
+
 def _save_upload(file_storage, forced_ext: str = ".png") -> Path:
     """Luu file upload voi ten uuid4 (khong dung ten goc lam duong dan)."""
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -154,6 +167,35 @@ def _save_upload(file_storage, forced_ext: str = ".png") -> Path:
     dst = UPLOADS_DIR / f"{uuid.uuid4().hex}{forced_ext}"
     file_storage.save(dst)
     return dst
+
+
+def _sidecar_for_asset(asset_id: str) -> Path | None:
+    """Tim sidecar cua asset trong data/signed/ (ho tro .png/.docx/.pdf)."""
+    signed = docfile.find_signed(config.SIGNED_DIR, asset_id)
+    if signed is None:
+        return None
+    sidecar = Path(str(signed) + ".sig.json")
+    return sidecar if sidecar.exists() else None
+
+
+# Nhan phuong phap watermark an theo dinh dang (hien thi cho nguoi dung)
+WM_METHOD = {
+    "png": "LSB trong điểm ảnh",
+    "docx": "metadata DOCX (docProps/core.xml)",
+    "pdf": "không có (PDF chỉ ký)",
+}
+
+
+def _read_hidden_watermark(signed_path: Path, kind: str) -> dict | None:
+    """Doc lai watermark an tu file da ky (PNG: LSB, DOCX: metadata, PDF: khong co)."""
+    if kind == "png":
+        try:
+            return lsb_mod.extract(signed_path)
+        except (ValueError, OSError):
+            return None
+    if kind == "docx":
+        return docfile.extract_docx_metadata(signed_path)
+    return None
 
 
 def _recent_events(limit: int = 5) -> list[dict]:
@@ -209,6 +251,8 @@ def protect() -> str:
     name = (request.form.get("name") or "").strip()
     asset_type = (request.form.get("type") or "").strip()
     importance_raw = request.form.get("importance") or ""
+    # Checkbox watermark hien: chi gui gia tri neu duoc tick
+    visible_watermark = request.form.get("visible_watermark") is not None
     upload = request.files.get("png")
 
     if not name or not asset_type:
@@ -218,12 +262,15 @@ def protect() -> str:
         flash("Mức quan trọng phải là 1, 2 hoặc 3.")
         return render_template("protect.html", now=_now(), result=None), 400
     if upload is None or not upload.filename:
-        flash("Vui lòng chọn một file ảnh PNG.")
+        flash("Vui lòng chọn một file PNG, DOCX hoặc PDF.")
         return render_template("protect.html", now=_now(), result=None), 400
 
-    tmp = _save_upload(upload)
+    tmp = _save_upload(upload, forced_ext=_safe_ext(upload.filename))
     try:
-        result = pipeline.protect(tmp, name, asset_type, int(importance_raw))
+        result = pipeline.protect(
+            tmp, name, asset_type, int(importance_raw),
+            visible_watermark=visible_watermark,
+        )
     except ValueError as exc:
         flash(str(exc))
         return render_template("protect.html", now=_now(), result=None), 400
@@ -235,9 +282,13 @@ def protect() -> str:
         now=_now(),
         result={
             "asset_id": result.asset_id,
+            "kind": result.kind,
             "signed_name": result.signed_path.name,
             "original_name": result.original_path.name,
             "sha256": result.sha256_signed,
+            "wm_method": WM_METHOD.get(result.kind, ""),
+            "wm": _read_hidden_watermark(result.signed_path, result.kind),
+            "visible_watermark": result.visible_watermark,
         },
     )
 
@@ -249,32 +300,40 @@ def verify() -> str:
 
     upload = request.files.get("png")
     if upload is None or not upload.filename:
-        flash("Vui lòng chọn một file ảnh PNG.")
+        flash("Vui lòng chọn một file PNG, DOCX hoặc PDF.")
         return render_template("verify.html", now=_now(), report=None), 400
 
-    tmp = _save_upload(upload)
+    tmp = _save_upload(upload, forced_ext=_safe_ext(upload.filename))
     sidecar_path: Path | None = None
     sidecar_file = request.files.get("sig")
     if sidecar_file is not None and sidecar_file.filename:
         sidecar_path = _save_upload(sidecar_file, forced_ext=".sig.json")
 
     try:
-        # Neu nguoi dung khong nop sidecar: tim theo asset_id doc tu LSB trong data/signed/
+        # Neu nguoi dung khong nop sidecar: tim theo asset_id doc tu watermark an.
+        # PNG: doc tu LSB. DOCX: doc tu metadata. PDF: khong co watermark nen phai nop sidecar.
         if sidecar_path is None:
-            payload = lsb_mod.extract(tmp)
+            ext = tmp.suffix.lower()
+            payload = None
+            if ext == ".docx":
+                payload = docfile.extract_docx_metadata(tmp)
+            elif ext == ".png":
+                payload = lsb_mod.extract(tmp)
             if payload and ASSET_ID_RE.match(str(payload.get("asset_id", ""))):
-                candidate = config.SIGNED_DIR / f"{payload['asset_id']}.png.sig.json"
-                if candidate.exists():
-                    sidecar_path = candidate
+                sidecar_path = _sidecar_for_asset(str(payload["asset_id"]))
 
         report = pipeline.verify_full(tmp, sidecar_path)
         sidecar = report.sig.sidecar or {}
+        kind = tmp.suffix.lower().lstrip(".")
         context = {
             "verdict": report.verdict,
             "label": VERDICT_LABEL.get(report.verdict, report.verdict),
             "cls": VERDICT_CLASS.get(report.verdict, "warn"),
             "reason": report.sig.reason,
             "sha256": report.sig.sha256,
+            "kind": kind,
+            "wm_method": WM_METHOD.get(kind, ""),
+            "wm": report.lsb_payload,
             "lsb_ok": report.lsb_payload is not None,
             "lsb_payload": report.lsb_payload,
             "notes": report.notes,
@@ -323,9 +382,7 @@ def verify_batch():
             sidecar_path: Path | None = None
             payload = lsb_mod.extract(tmp)
             if payload and ASSET_ID_RE.match(str(payload.get("asset_id", ""))):
-                candidate = config.SIGNED_DIR / f"{payload['asset_id']}.png.sig.json"
-                if candidate.exists():
-                    sidecar_path = candidate
+                sidecar_path = _sidecar_for_asset(str(payload["asset_id"]))
             # send_alert=False: khong gui ntfy tung anh, chi gui mot thong bao tom tat sau
             report = pipeline.verify_full(tmp, sidecar_path, send_alert=False)
             verdict = report.verdict
@@ -377,27 +434,33 @@ def asset_detail(asset_id: str):
         abort(404)
 
     asset = assets_mod.get_asset(asset_id)
-    signed_name = f"{asset_id}.png"
-    signed_exists = (config.SIGNED_DIR / signed_name).exists()
-    if asset is None and not signed_exists:
+    signed = docfile.find_signed(config.SIGNED_DIR, asset_id)
+    signed_name = signed.name if signed is not None else ""
+    signed_kind = signed.suffix.lower().lstrip(".") if signed is not None else ""
+    if asset is None and signed is None:
         abort(404)
 
     if request.method == "POST":
         try:
-            result = recover_mod.recover(asset_id, RECOVERED_DIR / signed_name)
+            dst = RECOVERED_DIR / signed_name
+            result = recover_mod.recover(asset_id, dst)
             ket_luan = "HỢP LỆ" if result.valid else "KHÔNG HỢP LỆ"
             flash(f"Đã khôi phục {asset_id}. Xác minh lại: {ket_luan} — {result.reason}")
         except (FileNotFoundError, OSError) as exc:
             flash(str(exc))
 
     history = [ln for ln in logger_mod.read_log_lines() if asset_id in ln]
+    wm = _read_hidden_watermark(signed, signed_kind) if signed is not None else None
     return render_template(
         "asset_detail.html",
         now=_now(),
         asset=asset,
         asset_id=asset_id,
         signed_name=signed_name,
-        signed_exists=signed_exists,
+        signed_exists=signed is not None,
+        signed_kind=signed_kind,
+        wm_method=WM_METHOD.get(signed_kind, ""),
+        wm=wm,
         history=history[-50:][::-1],
     )
 
@@ -720,18 +783,28 @@ def media(kind: str, filename: str):
 
 @app.route("/download/<asset_id>/<kind>")
 def download(asset_id: str, kind: str):
-    """Tai ảnh đã ký hoặc sidecar. kind chi nhan 'png' hoac 'sig'."""
+    """Tai file da ky (png/doc) hoac sidecar. kind chi nhan 'png', 'doc' hoac 'sig'."""
     if not ASSET_ID_RE.match(asset_id):
         abort(404)
-    if kind not in ("png", "sig"):
+    if kind not in ("png", "doc", "sig"):
         abort(404)
 
+    signed = docfile.find_signed(config.SIGNED_DIR, asset_id)
+    if signed is None:
+        abort(404)
+
+    ext = signed.suffix.lower()
     if kind == "png":
-        target = config.SIGNED_DIR / f"{asset_id}.png"
-        ctype, dl = "image/png", f"{asset_id}.png"
+        if ext != ".png":
+            abort(404)
+        target, ctype, dl = signed, "image/png", signed.name
+    elif kind == "doc":
+        if ext not in _DOC_MIME:
+            abort(404)
+        target, ctype, dl = signed, _DOC_MIME[ext], signed.name
     else:
-        target = config.SIGNED_DIR / f"{asset_id}.png.sig.json"
-        ctype, dl = "application/json", f"{asset_id}.png.sig.json"
+        target = Path(str(signed) + ".sig.json")
+        ctype, dl = "application/json", target.name
 
     resolved = target.resolve()
     if resolved.parent != config.SIGNED_DIR.resolve() or not resolved.exists():

@@ -39,17 +39,20 @@ Dự án: **ImgSign** — Xây dựng hệ thống chống giả mạo và làm 
   - Kiểm tra file là PNG hợp lệ bằng Pillow (không chỉ nhìn đuôi)
   - `debug=False` mặc định
   - Không để route nào nhận đường dẫn tùy ý từ người dùng (chống path traversal)
-- Chỉ chấp nhận **PNG**. JPG bị từ chối kèm giải thích (nén có mất mát phá watermark ẩn).
+- Chấp nhận **PNG, DOCX, PDF**. PNG: watermark hiện + watermark ẩn LSB. DOCX: giữ nguyên nội dung, giấu watermark ẩn trong metadata (`docProps/core.xml`). PDF: chỉ ký toàn vẹn, không watermark. JPG và định dạng khác bị từ chối kèm giải thích (nén có mất mát phá watermark ẩn).
 - So sánh hash/chữ ký dùng hàm của thư viện `cryptography`, không tự so sánh chuỗi.
 
 ## 6. Bất biến quan trọng nhất (KHÔNG được đổi thứ tự)
-Quy trình bảo vệ ảnh luôn là:
+Quy trình bảo vệ luôn kết thúc bằng bước KÝ, tùy theo loại file:
 
 ```
-ảnh gốc -> (1) watermark hiện -> (2) watermark ẩn LSB -> (3) lưu PNG -> (4) KÝ file PNG cuối cùng
+ảnh gốc (PNG) -> (1) [watermark hiện] (tùy chọn, mặc định bật) -> (2) watermark ẩn LSB -> (3) lưu PNG -> (4) KÝ file PNG cuối cùng
+DOCX          -> (1) watermark ẩn trong metadata -> (2) lưu DOCX          -> (3) KÝ file DOCX cuối cùng
+PDF           -> (1) lưu PDF                                             -> (2) KÝ file PDF cuối cùng (không watermark)
 ```
 
 Lý do: ký phải là bước cuối vì chữ ký phủ lên từng byte của file. Watermark hiện làm đổi điểm ảnh nên phải làm TRƯỚC watermark ẩn, nếu không sẽ phá LSB. Sai thứ tự = hỏng hệ thống.
+Lưu ý: watermark hiện là **tùy chọn** (mặc định bật). Nếu tắt thì bỏ qua bước (1), vẫn giữ LSB + ký. Tùy chọn này chỉ có ý nghĩa cho PNG.
 
 ## 7. Định nghĩa "xong"
 Một milestone xong khi: (a) lệnh nghiệm thu chạy ra đúng kết quả mong đợi, (b) không có lỗi, (c) đã in kết quả cho người dùng xem, (d) cập nhật dấu `[x]` trong `TASKS.md`.

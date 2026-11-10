@@ -8,9 +8,9 @@ Dùng làm khung cho mục "Cơ sở lý thuyết và ánh xạ" trong báo cáo
 |-----------|----------------------|--------------------|----------------|-----------|
 | **Identify** | ID.AM (Quản lý tài sản) | Đăng ký mỗi ảnh vào bảng tài sản, có loại ảnh và mức quan trọng 1-3 | `assets.py`, lệnh `assets`, trang `/assets` | Bảng tài sản |
 | **Identify** | ID.RA (Đánh giá rủi ro) | Mức quan trọng 3 được ghi nhận là rủi ro cao nếu bị làm giả; nêu trong báo cáo | `assets.json` trường `importance` | Mô tả trong báo cáo |
-| **Protect** | PR.DS (Bảo mật dữ liệu) | Chữ ký số RSA-PSS bảo vệ toàn vẹn; watermark hiện và ẩn bảo vệ nguồn gốc | `signer.py`, `watermark.py`, `lsb.py` | Ảnh ký, ảnh watermark |
+| **Protect** | PR.DS (Bảo mật dữ liệu) | Chữ ký số RSA-PSS bảo vệ toàn vẹn ảnh (PNG) và tài liệu (DOCX/PDF); watermark hiện + ẩn (LSB ở PNG, metadata ở DOCX) bảo vệ nguồn gốc | `signer.py`, `watermark.py`, `lsb.py`, `docfile.py` | Ảnh/tài liệu đã ký, watermark |
 | **Protect** | PR.AC (Kiểm soát truy cập) | Khóa riêng chỉ người phát hành giữ, có thể đặt mật khẩu; người kiểm tra chỉ cần khóa công khai | `keys.py` | Mô tả quản lý khóa |
-| **Protect** | PR.IP (Quy trình bảo vệ thông tin) | Quy trình bảo vệ cố định 4 bước, lưu bản gốc | `pipeline.protect()` | Lưu đồ quy trình |
+| **Protect** | PR.IP (Quy trình bảo vệ thông tin) | Quy trình bảo vệ cố định (KÝ luôn là bước cuối), lưu bản gốc | `pipeline.protect()` | Lưu đồ quy trình |
 | **Detect** | DE.CM (Giám sát liên tục) | Mỗi ảnh đưa vào đều được xác minh, ghi log | `pipeline.verify_full()`, `logger.py` | `verify.log` |
 | **Detect** | DE.AE (Phân tích bất thường) | Phân loại bốn kết luận theo chữ ký và watermark ẩn, phát hiện sửa 1 điểm ảnh | `verify_full()` | Ảnh KHÔNG HỢP LỆ |
 | **Respond** | RS.CO (Truyền thông ứng phó) | Gửi cảnh báo ntfy tới người phụ trách khi phát hiện ảnh giả | `notifier.py` | Ảnh điện thoại nhận thông báo |

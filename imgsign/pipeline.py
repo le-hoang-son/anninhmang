@@ -19,6 +19,7 @@ from PIL import Image
 
 import config
 from imgsign import assets as assets_mod
+from imgsign import docfile
 from imgsign import keys as keys_mod
 from imgsign import logger as logger_mod
 from imgsign import lsb as lsb_mod
@@ -30,13 +31,15 @@ from imgsign.signer import VerifyResult
 
 @dataclass
 class ProtectResult:
-    """Ket qua quy trinh bao ve anh."""
+    """Ket qua quy trinh bao ve tai san (anh hoac tai lieu)."""
 
     asset_id: str
     signed_path: Path
     sidecar_path: Path
     original_path: Path
     sha256_signed: str
+    kind: str = "png"  # "png" | "docx" | "pdf"
+    visible_watermark: bool = True  # True: da chen watermark hien (chi co y nghia voi PNG)
 
 
 @dataclass
@@ -63,36 +66,84 @@ def validate_png(src: Path) -> None:
         )
 
 
-def protect(src: Path, asset_name: str, asset_type: str, importance: int) -> ProtectResult:
-    """Bao ve anh theo dung thu tu bat bien. Tra ve ProtectResult.
+def protect(
+    src: Path,
+    asset_name: str,
+    asset_type: str,
+    importance: int,
+    visible_watermark: bool = True,
+) -> ProtectResult:
+    """Bao ve tai san theo dung thu tu. Tra ve ProtectResult.
 
-    Buoc: luu goc -> dang ky asset -> watermark hien -> LSB -> luu PNG -> KY (buoc cuoi) -> log.
+    PNG : luu goc -> dang ky asset -> (watermark hien tuy chon) -> LSB -> luu PNG -> KY (buoc cuoi) -> log.
+    DOCX: luu goc -> dang ky asset -> (watermark hien header tuy chon) -> watermark an metadata -> luu DOCX -> KY -> log.
+    PDF : luu goc -> dang ky asset -> (watermark hien text tuy chon) -> luu PDF -> KY -> log.
+    visible_watermark: tuy chon cho PNG/DOCX/PDF. Neu False thi bo watermark hien, van giu watermark an (PNG/DOCX) va ky.
     """
     src = Path(src)
-    validate_png(src)
+    kind = docfile.detect_kind(src)
+    if kind == "png":
+        validate_png(src)
+    elif kind == "docx":
+        docfile.validate_docx(src)
+    else:
+        docfile.validate_pdf(src)
 
     sha256_original = hashlib.sha256(src.read_bytes()).hexdigest()
     asset = assets_mod.register_asset(asset_name, asset_type, importance, sha256_original)
     asset_id = asset["asset_id"]
     today = f"{datetime.now():%Y-%m-%d}"
+    wm_text = f"{config.OWNER_NAME} {today}"
 
     # (1) Luu ban goc
     config.ORIGINALS_DIR.mkdir(parents=True, exist_ok=True)
     original_path = config.ORIGINALS_DIR / f"{asset_id}{src.suffix}"
     original_path.write_bytes(src.read_bytes())
 
-    # (2) Watermark hien -> file tam
     config.SIGNED_DIR.mkdir(parents=True, exist_ok=True)
-    temp_visible = config.SIGNED_DIR / f".{asset_id}_visible.png"
-    watermark_mod.add_visible_watermark(src, temp_visible, f"{config.OWNER_NAME} {today}")
-
-    # (3)+(4) Watermark an LSB -> file PNG cuoi cung
-    signed_path = config.SIGNED_DIR / f"{asset_id}.png"
     payload = {"asset_id": asset_id, "owner": config.OWNER_NAME, "date": today}
-    lsb_mod.embed(temp_visible, signed_path, payload)
-    temp_visible.unlink(missing_ok=True)
 
-    # (5) KY file PNG cuoi cung (buoc cuoi)
+    wm_applied = False
+    if kind == "png":
+        # (2) Watermark hien (tuy chon) -> file tam
+        if visible_watermark:
+            temp_visible = config.SIGNED_DIR / f".{asset_id}_visible.png"
+            watermark_mod.add_visible_watermark(src, temp_visible, wm_text)
+            lsb_src = temp_visible
+            wm_applied = True
+        else:
+            lsb_src = src
+
+        # (3)+(4) Watermark an LSB -> file PNG cuoi cung
+        signed_path = config.SIGNED_DIR / f"{asset_id}.png"
+        lsb_mod.embed(lsb_src, signed_path, payload)
+        if wm_applied:
+            temp_visible.unlink(missing_ok=True)
+    elif kind == "docx":
+        # (2') Watermark hien (header, tuy chon) -> file tam
+        if visible_watermark:
+            temp_visible = config.SIGNED_DIR / f".{asset_id}_visible.docx"
+            docfile.embed_docx_visible_watermark(src, temp_visible, wm_text)
+            meta_src = temp_visible
+            wm_applied = True
+        else:
+            meta_src = src
+
+        # (3') Watermark an (metadata) -> file DOCX cuoi cung
+        signed_path = config.SIGNED_DIR / f"{asset_id}.docx"
+        docfile.embed_docx_metadata(meta_src, signed_path, payload)
+        if wm_applied:
+            temp_visible.unlink(missing_ok=True)
+    else:
+        # PDF: watermark hien (text, tuy chon) -> file PDF cuoi cung (khong watermark an)
+        signed_path = config.SIGNED_DIR / f"{asset_id}.pdf"
+        if visible_watermark:
+            docfile.embed_pdf_visible_watermark(src, signed_path, wm_text)
+            wm_applied = True
+        else:
+            signed_path.write_bytes(src.read_bytes())
+
+    # (5) KY file cuoi cung (buoc cuoi)
     sidecar_path = signer.sign_file(signed_path, asset_id)
 
     result = ProtectResult(
@@ -101,6 +152,8 @@ def protect(src: Path, asset_name: str, asset_type: str, importance: int) -> Pro
         sidecar_path=sidecar_path,
         original_path=original_path,
         sha256_signed=signer.verify_file(signed_path, sidecar_path).sha256,
+        kind=kind,
+        visible_watermark=wm_applied,
     )
 
     # (6) Ghi log bao ve
@@ -115,6 +168,7 @@ def verify_full(
 ) -> FullReport:
     """Xac minh day du: chu ky + watermark an, ket luan theo SPEC.md muc 7.
 
+    Ho tro PNG (watermark LSB), DOCX (watermark metadata), PDF (chi chu ky).
     send_alert=False: khong gui ntfy (dung cho /verify-batch, noi chi gui mot thong bao tom tat).
     """
     png_path = Path(png_path)
@@ -129,35 +183,51 @@ def verify_full(
         logger_mod.log_verify(png_path.name, "KHONG_XAC_MINH_DUOC", "; ".join(notes))
         return FullReport(verdict="KHONG_XAC_MINH_DUOC", sig=sig, lsb_payload=None, notes=notes)
 
-    # 3. Doc watermark an LSB
+    # 3. Doc watermark an theo loai file
     try:
-        lsb_payload = lsb_mod.extract(png_path)
-    except (ValueError, OSError):
-        lsb_payload = None
+        kind = docfile.detect_kind(png_path)
+    except ValueError:
+        kind = None
+
+    if kind == "docx":
+        watermark = docfile.extract_docx_metadata(png_path)
+        wm_name = "watermark ẩn (metadata DOCX)"
+    elif kind == "pdf":
+        watermark = None
+        wm_name = "watermark ẩn (PDF không có watermark)"
+    else:
+        try:
+            watermark = lsb_mod.extract(png_path)
+        except (ValueError, OSError):
+            watermark = None
+        wm_name = "watermark ẩn (LSB)"
 
     # 4. Ket luan theo bang logic SPEC.md muc 7
     if sig.valid:
-        if lsb_payload is None:
+        if kind == "pdf":
+            verdict = "HOP_LE"
+            notes.append("Chữ ký hợp lệ: tài liệu PDF nguyên bản (PDF chỉ ký, không watermark).")
+        elif watermark is None:
             verdict = "HOP_LE_CANH_BAO"
-            notes.append("Chữ ký hợp lệ nhưng không đọc được watermark ẩn (hiếm, ghi log).")
-        elif lsb_payload.get("asset_id") != sig.sidecar.get("asset_id"):
+            notes.append(f"Chữ ký hợp lệ nhưng không đọc được {wm_name} (hiếm, ghi log).")
+        elif watermark.get("asset_id") != sig.sidecar.get("asset_id"):
             verdict = "HOP_LE_CANH_BAO"
             notes.append(
-                "Watermark ẩn không khớp asset_id trong sidecar: "
-                f"{lsb_payload.get('asset_id')!r} vs {sig.sidecar.get('asset_id')!r}."
+                f"{wm_name} không khớp asset_id trong sidecar: "
+                f"{watermark.get('asset_id')!r} vs {sig.sidecar.get('asset_id')!r}."
             )
         else:
             verdict = "HOP_LE"
-            notes.append("Chữ ký hợp lệ và watermark ẩn khớp sidecar: ảnh nguyên bản.")
+            notes.append(f"Chữ ký hợp lệ và {wm_name} khớp sidecar: tài liệu nguyên bản.")
     else:
         verdict = "KHONG_HOP_LE"
         notes.append(f"Chữ ký không hợp lệ: {sig.reason}")
-        if lsb_payload is not None:
-            notes.append("Vẫn đọc được watermark ẩn: nhận ra nguồn gốc ảnh.")
+        if watermark is not None:
+            notes.append(f"Vẫn đọc được {wm_name}: nhận ra nguồn gốc tài sản.")
         else:
-            notes.append("Không đọc được watermark ẩn: ảnh bị sửa nặng hoặc không phải ảnh của hệ thống.")
+            notes.append("Không đọc được watermark ẩn: tài liệu bị sửa nặng hoặc không phải của hệ thống.")
 
-    report = FullReport(verdict=verdict, sig=sig, lsb_payload=lsb_payload, notes=notes)
+    report = FullReport(verdict=verdict, sig=sig, lsb_payload=watermark, notes=notes)
 
     # 5. Ghi log moi lan xac minh
     logger_mod.log_verify(png_path.name, verdict, "; ".join(notes))

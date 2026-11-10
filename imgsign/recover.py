@@ -1,6 +1,7 @@
 """Luu ban goc va khoi phuc ban da ky (FR-10, Recover - RC.RP).
 
-recover(): chep ban da ky (data/signed/<asset_id>.png) ve dst va xac minh lai.
+recover(): chep ban da ky (data/signed/<asset_id>.<ext>) ve dst va xac minh lai.
+Ho tro .png, .docx, .pdf.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ import shutil
 from pathlib import Path
 
 import config
+from imgsign import docfile
 from imgsign import logger as logger_mod
 from imgsign import signer
 from imgsign.signer import VerifyResult
@@ -20,10 +22,10 @@ def recover(asset_id: str, dst: Path) -> VerifyResult:
     Nem FileNotFoundError neu khong co ban da ky.
     """
     dst = Path(dst)
-    source = config.SIGNED_DIR / f"{asset_id}.png"
-    sidecar = config.SIGNED_DIR / f"{asset_id}.png.sig.json"
+    source = docfile.find_signed(config.SIGNED_DIR, asset_id)
+    sidecar = Path(str(source) + ".sig.json") if source is not None else None
 
-    if not source.exists() or not sidecar.exists():
+    if source is None or sidecar is None or not sidecar.exists():
         raise FileNotFoundError(
             f"Không tìm thấy bản đã ký cho asset '{asset_id}' trong data/signed/."
         )

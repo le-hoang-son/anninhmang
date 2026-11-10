@@ -144,3 +144,25 @@ python demo.py
 pytest -q
 ```
 Mong đợi: demo chạy trơn từ đầu đến cuối, không lỗi, kết quả đúng với `TEST_PLAN.md`.
+
+---
+
+## [x] M9 — Bảo vệ tài liệu DOCX/PDF (FR-21, FR-22)
+**Làm:**
+- `imgsign/docfile.py`: `detect_kind`, `validate_docx`, `validate_pdf`, `embed_docx_metadata`, `extract_docx_metadata`, `find_signed` (chỉ dùng thư viện chuẩn: `zipfile`, `base64`, `json`, `re`, `pathlib`).
+- `pipeline.protect()` và `verify_full()` nhận thêm DOCX (watermark ẩn metadata) và PDF (chỉ ký); `ProtectResult` thêm trường `kind`.
+- CLI: `protect` nhận `.png/.docx/.pdf`, thêm lệnh `docx-read`; web: `/protect`, `/verify`, `/download/<id>/doc`, `/assets/<id>` hỗ trợ tài liệu.
+- `tests/test_docfile.py`: kiểm tra loại file, round-trip watermark DOCX, protect/verify DOCX hợp lệ + bị sửa, PDF ký và xác minh.
+- Cập nhật `AGENTS.md`, `SPEC.md`, `ARCHITECTURE.md`, `TEST_PLAN.md`, `README.md`, `EVIDENCE_CHECKLIST.md`.
+
+**Nghiệm thu:**
+```
+pytest -q
+python cli.py protect samples/goc.docx --name "Hop dong A" --type "hop dong" --importance 3
+python cli.py docx-read data/signed/IMG-xxxx.docx
+python cli.py verify data/signed/IMG-xxxx.docx
+python cli.py protect samples/goc.pdf --name "Bao cao B" --type "bao cao" --importance 2
+python cli.py verify data/signed/IMG-xxxx.pdf --sig data/signed/IMG-xxxx.pdf.sig.json
+```
+Mong đợi: an toàn giữ nguyên toàn bộ test cũ (36 test) đều xanh; DOCX protect -> verify `HỢP LỆ` và `docx-read` đọc lại đúng metadata; sửa 1 byte DOCX -> `KHÔNG HỢP LỆ`; PDF có chữ ký -> `HỢP LỆ`.
+Ghi chú: `samples/goc.docx`, `samples/goc.pdf` là file người dùng tự đặt; nếu chưa có thì bỏ qua lệnh CLI tương ứng và dùng `pytest -q` làm nghiệm thu chính.

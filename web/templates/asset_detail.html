@@ -18,11 +18,19 @@
 </div>
 
 <div class="card">
-  <h2>Ảnh đã ký</h2>
+  <h2>{{ 'Ảnh đã ký' if signed_kind == 'png' else 'Tài liệu đã ký' }}</h2>
   {% if signed_exists %}
-    <img class="thumb" src="{{ url_for('media', kind='signed', filename=signed_name) }}" alt="Anh da ky">
+    {% if signed_kind == 'png' %}
+      <img class="thumb" src="{{ url_for('media', kind='signed', filename=signed_name) }}" alt="Anh da ky">
+    {% else %}
+      <p class="muted">Tài liệu {{ signed_kind | upper }}: {{ signed_name }} (không xem trước trong trình duyệt).</p>
+    {% endif %}
     <div style="margin-top:10px;">
+      {% if signed_kind == 'png' %}
       <a class="dl" href="{{ url_for('download', asset_id=asset_id, kind='png') }}">Tải ảnh đã ký (.png)</a><br>
+      {% else %}
+      <a class="dl" href="{{ url_for('download', asset_id=asset_id, kind='doc') }}">Tải tài liệu đã ký (.{{ signed_kind }})</a><br>
+      {% endif %}
       <a class="dl" href="{{ url_for('download', asset_id=asset_id, kind='sig') }}">Tải file chữ ký (.sig.json)</a>
     </div>
 
@@ -31,7 +39,25 @@
     </form>
     <p class="muted">Khôi phục sẽ chép bản đã ký về thư mục data/recovered/ và xác minh lại chữ ký.</p>
   {% else %}
-    <p class="muted">Chưa có ảnh đã ký cho asset này trong data/signed/.</p>
+    <p class="muted">Chưa có bản đã ký cho asset này trong data/signed/.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Watermark ẩn đọc từ file đã ký</h2>
+  {% if signed_exists %}
+    <div class="kv">
+      <div><b>Phương pháp:</b> {{ wm_method }}</div>
+      {% if wm %}
+        <div><b>asset_id:</b> {{ wm.asset_id }}</div>
+        <div><b>owner:</b> {{ wm.owner }}</div>
+        <div><b>date:</b> {{ wm.date }}</div>
+      {% else %}
+        <div class="muted">Không đọc được watermark ẩn (PDF chỉ ký, hoặc file đã bị sửa).</div>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="muted">Chưa có file đã ký cho asset này.</p>
   {% endif %}
 </div>
 

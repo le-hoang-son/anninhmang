@@ -13,6 +13,7 @@ from PIL import Image
 
 import config
 from imgsign import assets as assets_mod
+from imgsign import docfile
 from imgsign import keys as keys_mod
 from imgsign import lsb as lsb_mod
 from imgsign import pipeline
@@ -37,6 +38,7 @@ _MILESTONES: dict[str, str] = {
     "verify": "M5",
     "assets": "M6",
     "recover": "M6",
+    "docx-read": "M9",
 }
 
 
@@ -88,12 +90,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_lsb_r.add_argument("png", help="Duong dan anh PNG")
 
     # --- M5/M6: quy trinh bao ve, xac minh, tai san, khoi phuc ---
-    p_protect = sub.add_parser("protect", help="Quy trinh bao ve anh (M5/M6)")
-    p_protect.add_argument("png", help="Duong dan anh PNG goc")
+    p_protect = sub.add_parser(
+        "protect", help="Quy trinh bao ve anh/tai lieu: PNG, DOCX, PDF (M5/M6/M9)"
+    )
+    p_protect.add_argument("png", help="Duong dan file goc (.png, .docx hoac .pdf)")
     p_protect.add_argument("--name", required=True, help="Ten tai san")
-    p_protect.add_argument("--type", dest="asset_type", required=True, help="Loai anh")
+    p_protect.add_argument("--type", dest="asset_type", required=True, help="Loai anh hoac loai tai lieu")
     p_protect.add_argument("--importance", type=int, choices=[1, 2, 3], required=True,
                            help="Muc quan trong: 1 thap | 2 trung binh | 3 cao")
+    p_protect.add_argument("--no-visible-watermark", dest="visible_watermark",
+                           action="store_false", default=True,
+                           help="Bo qua watermark hien (chi ap dung cho PNG; van co watermark an LSB va chu ky)")
 
     p_verify = sub.add_parser("verify", help="Xac minh day du anh (M5)")
     p_verify.add_argument("png", help="Duong dan anh PNG")
@@ -104,6 +111,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_recover = sub.add_parser("recover", help="Khoi phuc ban da ky (M6)")
     p_recover.add_argument("asset_id", help="Ma tai san, vi du IMG-0001")
     p_recover.add_argument("out", help="Duong dan file dau ra")
+
+    # --- M9: doc watermark an trong tai lieu DOCX ---
+    p_docx_read = sub.add_parser("docx-read", help="Doc watermark an (metadata) trong DOCX (M9)")
+    p_docx_read.add_argument("docx", help="Duong dan file .docx")
 
     return parser
 
@@ -268,16 +279,24 @@ def cmd_protect(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        result = pipeline.protect(src, args.name, args.asset_type, args.importance)
+        result = pipeline.protect(
+            src, args.name, args.asset_type, args.importance,
+            visible_watermark=args.visible_watermark,
+        )
     except (ValueError, OSError) as exc:
         print(f"[{_now()}] Lỗi: {exc}")
         return 1
 
-    print(f"[{_now()}] [PROTECT] Đã bảo vệ ảnh '{src.name}' -> asset {result.asset_id}.")
+    label = "Ảnh đã ký" if result.kind == "png" else "Tài liệu đã ký"
+    print(f"[{_now()}] [PROTECT] Đã bảo vệ '{src.name}' -> asset {result.asset_id} (định dạng {result.kind}).")
+    if result.kind == "png":
+        print(
+            f"[{_now()}] Watermark hiện: {'CÓ (chữ mờ)' if result.visible_watermark else 'KHÔNG (chỉ watermark ẩn LSB)'}"
+        )
     print(f"[{_now()}] Bản gốc lưu: {result.original_path}")
-    print(f"[{_now()}] Ảnh đã ký: {result.signed_path}")
+    print(f"[{_now()}] {label}: {result.signed_path}")
     print(f"[{_now()}] Sidecar: {result.sidecar_path}")
-    print(f"[{_now()}] SHA-256 ảnh đã ký: {result.sha256_signed}")
+    print(f"[{_now()}] SHA-256 file đã ký: {result.sha256_signed}")
     return 0
 
 
@@ -337,6 +356,23 @@ def cmd_recover(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_docx_read(args: argparse.Namespace) -> int:
+    """Lenh docx-read: doc watermark an (metadata) trong file DOCX."""
+    src = Path(args.docx)
+    if not src.exists():
+        print(f"[{_now()}] Lỗi: không tìm thấy file '{src}'.")
+        return 1
+
+    payload = docfile.extract_docx_metadata(src)
+    if payload is None:
+        print(f"[{_now()}] [DETECT] '{src.name}': không tìm thấy watermark ẩn.")
+        return 0
+
+    print(f"[{_now()}] [DETECT] '{src.name}': đọc được watermark ẩn.")
+    print(f"[{_now()}] Payload: {payload}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Chay CLI theo lenh con."""
     parser = build_parser()
@@ -354,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
         "verify": cmd_verify,
         "assets": cmd_assets,
         "recover": cmd_recover,
+        "docx-read": cmd_docx_read,
     }
 
     handler = handlers.get(args.command)

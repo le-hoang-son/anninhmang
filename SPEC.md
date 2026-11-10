@@ -17,7 +17,7 @@ Ví dụ: một trường phát hành ảnh bằng tốt nghiệp. Hệ thống 
 | FR-3 | Xác minh chữ ký | Nhận ảnh + sidecar, trả HỢP LỆ hoặc KHÔNG HỢP LỆ (kèm lý do). Chỉ cần khóa công khai. | M1 |
 | FR-4 | Watermark hiện | Chèn chữ mờ (tên đơn vị, ngày) lên ảnh, vị trí lặp chéo hoặc góc dưới. | M3 |
 | FR-5 | Watermark ẩn | Giấu payload JSON (asset_id, owner, ngày) vào bit thấp nhất (LSB) của điểm ảnh, đọc lại được. | M4 |
-| FR-6 | Quy trình bảo vệ | Lệnh một bước: watermark hiện -> watermark ẩn -> lưu -> ký. | M5 |
+| FR-6 | Quy trình bảo vệ | Lệnh một bước: watermark hiện -> watermark ẩn -> lưu -> ký. Watermark hiện là **tùy chọn** (mặc định bật); nếu tắt thì bỏ qua watermark hiện, vẫn giữ watermark ẩn + ký. | M5 |
 | FR-7 | Xác minh đầy đủ | Báo cáo gồm: kết quả chữ ký, watermark ẩn đọc được hay không, payload có khớp sidecar không. | M5 |
 | FR-8 | Bảng tài sản ảnh (Identify) | Đăng ký ảnh vào `data/assets.json`: asset_id, tên, loại ảnh, mức quan trọng (1-3), hash, thời gian. | M6 |
 | FR-9 | Ghi log + cảnh báo (Respond) | Mỗi lần xác minh ghi một dòng vào `data/logs/verify.log`. Nếu KHÔNG HỢP LỆ thì gửi ntfy. | M6 |
@@ -32,18 +32,21 @@ Ví dụ: một trường phát hành ảnh bằng tốt nghiệp. Hệ thống 
 | FR-18 | Nhật ký nâng cao (web) | `/logs`: lọc theo kết luận, tìm theo tên ảnh, phân trang 50 dòng, xuất CSV (chống CSV injection). | W4 |
 | FR-19 | Thử cảnh báo (web) | `/alert-test`: hiện trạng thái ntfy (chỉ 3 ký tự đầu của topic) và nút gửi thử cảnh báo. | W4 |
 | FR-20 | Bảo mật web nâng cao | `secret_key` đọc từ `IMGSIGN_SECRET_KEY` (không hardcode); giới hạn tần suất POST theo IP (20 lần/phút), vượt quá trả 429 kèm thông báo tiếng Việt. | W1 |
+| FR-21 | Bảo vệ tài liệu DOCX | Giữ nguyên nội dung DOCX, giấu **watermark ẩn** dạng metadata (`IMGSIGN-B64:<base64(JSON)>` trong `docProps/core.xml`), lưu rồi **ký file DOCX cuối cùng**. | M9 |
+| FR-22 | Bảo vệ tài liệu PDF | PDF chỉ **ký toàn vẹn** (không watermark, không sửa byte). Xác minh HỢP LỆ khi chữ ký hợp lệ. | M9 |
 
 ## 4. Phi chức năng
 - Chạy trên Windows và Ubuntu. Không cần Internet, trừ gửi ntfy (lỗi mạng ntfy không được làm sập chương trình, chỉ ghi log).
-- Ảnh PNG, tối đa 10 MB. Từ chối định dạng khác với thông báo rõ.
-- Xác minh một ảnh dưới 2 giây với ảnh khoảng 2 MB.
+- File PNG, DOCX, PDF, tối đa 10 MB. Từ chối định dạng khác với thông báo rõ (JPG bị từ chối vì nén có mất mát phá watermark ẩn).
+- Xác minh một file dưới 2 giây với file khoảng 2 MB.
 - Mọi thông báo cho người dùng bằng tiếng Việt có dấu.
 
 ## 5. Ngoài phạm vi (KHÔNG làm)
 - Watermark chịu nén JPG, chịu cắt xén, chịu phóng to thu nhỏ (cần kỹ thuật tần số, quá nặng).
+- Watermark chịu chỉnh sửa cho DOCX/PDF: sửa DOCX bằng Word làm đổi byte file (zip) nên chữ ký sẽ báo KHÔNG HỢP LỆ dù nội dung không đổi; PDF không có watermark.
 - Đăng nhập người dùng, phân quyền, database server.
 - Blockchain, timestamp server bên ngoài, chứng chỉ X.509.
-- Hỗ trợ video hoặc PDF.
+- Hỗ trợ video hoặc các định dạng văn phòng khác (ngoài DOCX/PDF).
 - Triển khai lên Internet.
 
 ## 6. Giới hạn trung thực (phải ghi vào báo cáo)
@@ -51,6 +54,7 @@ Ví dụ: một trường phát hành ảnh bằng tốt nghiệp. Hệ thống 
 - **Watermark ẩn LSB rất mong manh**: lưu lại JPG, đổi kích thước, chụp màn hình đều có thể làm mất. Vai trò của nó là chứng cứ nguồn gốc bổ sung, không thay thế chữ ký.
 - Ảnh bị sửa nhẹ vùng nhỏ có thể vẫn còn watermark ẩn đọc được nhưng chữ ký vẫn báo KHÔNG HỢP LỆ. Đây là hành vi đúng, hệ thống kết luận theo chữ ký.
 - Chữ ký chứng minh "file này do người giữ khóa riêng phát hành, chưa bị đổi", không chứng minh nội dung ảnh là sự thật.
+- **Tài liệu DOCX/PDF**: chữ ký phủ lên toàn bộ byte của file. Với DOCX, mở và lưu lại bằng Word (dù không sửa nội dung) sẽ làm đổi byte file ZIP nên chữ ký báo KHÔNG HỢP LỆ — đây là hành vi đúng (đảm bảo toàn vẹn byte), đã ghi rõ ở mục 5.
 
 ## 7. Logic kết luận khi xác minh
 
@@ -61,3 +65,8 @@ Ví dụ: một trường phát hành ảnh bằng tốt nghiệp. Hệ thống 
 | Không hợp lệ | Đọc được | **KHÔNG HỢP LỆ** — ảnh bị sửa, nguồn gốc nhận ra |
 | Không hợp lệ | Không đọc được | **KHÔNG HỢP LỆ** — ảnh bị sửa nặng hoặc không phải ảnh của hệ thống |
 | Thiếu file sidecar | — | **KHÔNG XÁC MINH ĐƯỢC** — yêu cầu cung cấp `.sig.json` |
+
+Áp dụng theo loại file:
+- **PNG**: watermark ẩn là payload LSB. Bảng logic áp dụng đầy đủ.
+- **DOCX**: watermark ẩn là metadata trong `docProps/core.xml`. Bảng logic áp dụng như PNG; nếu không đọc được metadata mà chữ ký hợp lệ thì kết luận HỢP LỆ (cảnh báo).
+- **PDF**: không có watermark. Chữ ký hợp lệ -> **HỢP LỆ**; chữ ký không hợp lệ -> **KHÔNG HỢP LỆ**; thiếu sidecar -> **KHÔNG XÁC MINH ĐƯỢC**.
